@@ -1,5 +1,5 @@
 from typing import Any
-from field_utils.rules import EqualsToValueRule, EqualsToFieldRule, ColumnValidationRule, ColumnFromFieldValidationRule, RequiredRule
+from .rules import EqualsToValueRule, EqualsToFieldRule, ColumnValidationRule, ColumnFromFieldValidationRule, RequiredRule
 from typeguard import typechecked
 import inspect
 

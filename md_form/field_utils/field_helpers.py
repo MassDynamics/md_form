@@ -1,6 +1,6 @@
 from typing import Any, Dict, List, Optional, Union
-from field_utils.field_types import FieldType
-from field_utils.field_builder import field_builder
+from .field_types import FieldType
+from .field_builder import field_builder
 from typeguard import typechecked
 
 @field_builder(FieldType.BOOLEAN)

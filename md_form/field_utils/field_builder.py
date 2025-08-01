@@ -1,10 +1,10 @@
 from typing import Any, Callable, Optional, Dict, Union, List
 from pydantic import Field
 from functools import wraps
-from field_utils.field_types import FieldType
-from field_utils.when import When
+from .field_types import FieldType
+from .when import When
 from typeguard import typechecked
-from field_utils.rules import Rule
+from .rules import Rule
 
 
 @typechecked
