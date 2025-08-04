@@ -26,8 +26,8 @@ dev = [
 ]
 
 [tool.setuptools.packages.find]
-where = ["."]
-include = ["field_utils*"]
+where = ["md_form"]
+include = ["md_form*", "field_utils*"]
 
 [tool.setuptools.package-data]
-"field_utils" = ["*.json"] 
+"md_form.field_utils" = ["*.json"] 

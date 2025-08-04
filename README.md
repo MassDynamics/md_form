@@ -5,7 +5,7 @@ A Python package for form field helpers and payload translation utilities.
 ## Installation
 
 ```bash
-pip install md_form
+pip install git+https://github.com/MassDynamics/md_form.git
 ```
 
 ## Usage
