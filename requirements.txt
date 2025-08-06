@@ -1,3 +1,0 @@
-pydantic~=2.10.4
-git+https://github.com/MassDynamics/md_dataset@v0.5.18-200
-typeguard>=4.0.0 
