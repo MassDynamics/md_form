@@ -27,7 +27,7 @@ def field_builder(field_type: FieldType) -> Callable[[Callable], Callable]:
         ) -> Field:
             # Build json_schema_extra with common parameters
             json_schema_extra: Dict[str, Any] = {
-                "type": field_type,
+                "field_type": field_type,
             }
             
             if name is not None:
