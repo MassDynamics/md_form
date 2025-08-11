@@ -256,7 +256,7 @@ _key_mapping = {
     "minimum": "min",
 }
 
-_allowed_keys = ["type", "parameters", "name", "rules", "description", "default", "when"]
+_allowed_keys = ["field_type", "parameters", "name", "rules", "description", "default", "when"]
 
 _pipeline = [
     _convert_enums_to_options,
