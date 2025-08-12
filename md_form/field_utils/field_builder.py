@@ -1,10 +1,10 @@
 from typing import Any, Callable, Optional, Dict, Union, List
 from pydantic import Field
 from functools import wraps
-from .field_types import FieldType
-from .when import When
+from field_utils.field_types import FieldType
+from field_utils.when import When
 from typeguard import typechecked
-from .rules import Rule
+from field_utils.rules import Rule
 
 
 @typechecked
@@ -39,10 +39,16 @@ def field_builder(field_type: FieldType) -> Callable[[Callable], Callable]:
             
             # Handle validation rules
             if rules is not None:
+
                 if isinstance(rules, list):
                     json_schema_extra["rules"] = [rule.as_dict() for rule in rules]
+                    has_required = any(rule.as_dict().get("name") == "is_required" for rule in rules)
                 else:
                     json_schema_extra["rules"] = rules.as_dict()
+                    has_required = rules.as_dict().get("name") == "is_required"
+
+            else:
+                has_required = False
             
             # Call the original function to get field-specific parameters
             field_params: Dict[str, Any] = func(**kwargs)
@@ -53,6 +59,10 @@ def field_builder(field_type: FieldType) -> Callable[[Callable], Callable]:
             
             # Build Field kwargs
             field_kwargs: Dict[str, Any] = {"json_schema_extra": json_schema_extra}
+            
+            # Add default=None if is_required is not in rules so the field is optional
+            if not has_required:
+                field_kwargs["default"] = None
             
             # Add any non-json_schema_extra parameters (like discriminator)
             for key, value in field_params.items():
