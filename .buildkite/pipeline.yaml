@@ -1,0 +1,7 @@
+steps:
+  - label: ":python: test"
+    command: ./scripts/test
+    env:
+      CONDA_ENV_NAME: "md_form"
+    agents:
+      python-r-4.3: true
