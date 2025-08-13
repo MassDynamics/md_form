@@ -543,5 +543,6 @@ class TestTranslatePayload:
             
             # Should preserve the basic structure
             assert "simple_field" in result
-            assert result["simple_field"]["type"] == "string"
+            # The pipeline removes "type" and keeps only allowed keys like "description"
+            assert "type" not in result["simple_field"]
             assert result["simple_field"]["description"] == "A simple field" 

@@ -33,8 +33,8 @@ class TestFieldBuilder:
         field = simple_field_function()
         
         assert isinstance(field, FieldInfo)
-        assert "type" in field.json_schema_extra
-        assert field.json_schema_extra["type"] == FieldType.BOOLEAN
+        assert "field_type" in field.json_schema_extra
+        assert field.json_schema_extra["field_type"] == FieldType.BOOLEAN
 
     def test_field_builder_with_name(self, simple_field_function):
         """Test field_builder with name parameter"""
@@ -161,7 +161,7 @@ class TestFieldBuilderWithDifferentTypes:
             return {}
         
         field = string_field()
-        assert field.json_schema_extra["type"] == FieldType.STRING
+        assert field.json_schema_extra["field_type"] == FieldType.STRING
 
     def test_field_builder_with_boolean_type(self):
         """Test field_builder with BOOLEAN type"""
@@ -170,7 +170,7 @@ class TestFieldBuilderWithDifferentTypes:
             return {}
         
         field = boolean_field()
-        assert field.json_schema_extra["type"] == FieldType.BOOLEAN
+        assert field.json_schema_extra["field_type"] == FieldType.BOOLEAN
 
     def test_field_builder_with_number_type(self):
         """Test field_builder with NUMBER type"""
@@ -179,7 +179,7 @@ class TestFieldBuilderWithDifferentTypes:
             return {}
         
         field = number_field()
-        assert field.json_schema_extra["type"] == FieldType.NUMBER
+        assert field.json_schema_extra["field_type"] == FieldType.NUMBER
 
     def test_field_builder_with_experiment_design_type(self):
         """Test field_builder with EXPERIMENT_DESIGN type"""
@@ -188,7 +188,7 @@ class TestFieldBuilderWithDifferentTypes:
             return {}
         
         field = experiment_field()
-        assert field.json_schema_extra["type"] == FieldType.EXPERIMENT_DESIGN
+        assert field.json_schema_extra["field_type"] == FieldType.EXPERIMENT_DESIGN
 
 
 class TestFieldBuilderEdgeCases:
@@ -202,7 +202,7 @@ class TestFieldBuilderEdgeCases:
         
         field = empty_field()
         assert isinstance(field, FieldInfo)
-        assert field.json_schema_extra["type"] == FieldType.STRING
+        assert field.json_schema_extra["field_type"] == FieldType.STRING
 
     def test_field_builder_with_function_returning_none(self):
         """Test field_builder with function that returns None"""
@@ -285,7 +285,7 @@ class TestFieldBuilderIntegration:
             return {}
         
         field = decorated_field()
-        assert field.json_schema_extra["type"] == FieldType.STRING
+        assert field.json_schema_extra["field_type"] == FieldType.STRING
         # The custom decorator might not work as expected with field_builder
         # Let's just check that the field is created successfully
         assert isinstance(field, FieldInfo) 

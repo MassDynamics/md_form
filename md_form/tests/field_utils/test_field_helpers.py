@@ -17,7 +17,7 @@ class TestBooleanField:
         field = boolean_field()
         
         assert isinstance(field, FieldInfo)
-        assert field.json_schema_extra["type"] == FieldType.BOOLEAN
+        assert field.json_schema_extra["field_type"] == FieldType.BOOLEAN
 
     def test_boolean_field_with_default(self):
         """Test boolean_field with default value"""
@@ -54,7 +54,7 @@ class TestStringField:
         field = string_field()
         
         assert isinstance(field, FieldInfo)
-        assert field.json_schema_extra["type"] == FieldType.STRING
+        assert field.json_schema_extra["field_type"] == FieldType.STRING
         assert field.json_schema_extra["disabled"] is False
 
     def test_string_field_with_default(self):
@@ -85,7 +85,7 @@ class TestNumberField:
         field = number_field()
         
         assert isinstance(field, FieldInfo)
-        assert field.json_schema_extra["type"] == FieldType.NUMBER
+        assert field.json_schema_extra["field_type"] == FieldType.NUMBER
 
     def test_number_field_with_default(self):
         """Test number_field with default value"""
@@ -136,7 +136,7 @@ class TestSelectField:
         field = select_field()
         
         assert isinstance(field, FieldInfo)
-        assert field.json_schema_extra["type"] == FieldType.STRING
+        assert field.json_schema_extra["field_type"] == FieldType.STRING
 
     def test_select_field_with_default(self):
         """Test select_field with default value"""
@@ -184,7 +184,7 @@ class TestExperimentDesignField:
         field = experiment_design_field()
         
         assert isinstance(field, FieldInfo)
-        assert field.json_schema_extra["type"] == FieldType.EXPERIMENT_DESIGN
+        assert field.json_schema_extra["field_type"] == FieldType.EXPERIMENT_DESIGN
         assert field.json_schema_extra["name"] == "Experiment Design"
 
 
@@ -196,7 +196,7 @@ class TestConditionColumnField:
         field = condition_column_field()
         
         assert isinstance(field, FieldInfo)
-        assert field.json_schema_extra["type"] == FieldType.CONDITION_COLUMN
+        assert field.json_schema_extra["field_type"] == FieldType.CONDITION_COLUMN
         assert "datasetsSearch" in field.json_schema_extra["parameters"]
         assert field.json_schema_extra["parameters"]["datasetsSearch"]["ref"] == "input_datasets"
 
@@ -209,7 +209,7 @@ class TestConditionComparisonsField:
         field = condition_comparisons_field()
         
         assert isinstance(field, FieldInfo)
-        assert field.json_schema_extra["type"] == FieldType.CONDITION_COMPARISONS
+        assert field.json_schema_extra["field_type"] == FieldType.CONDITION_COMPARISONS
         assert "experimentDesigns" in field.json_schema_extra["parameters"]
         assert "conditionColumn" in field.json_schema_extra["parameters"]
         assert field.json_schema_extra["parameters"]["experimentDesigns"]["ref"] == "experiment_design"
@@ -224,7 +224,7 @@ class TestControlVariablesField:
         field = control_variables_field()
         
         assert isinstance(field, FieldInfo)
-        assert field.json_schema_extra["type"] == FieldType.CONTROL_VARIABLES
+        assert field.json_schema_extra["field_type"] == FieldType.CONTROL_VARIABLES
         assert "radioOptions" in field.json_schema_extra["parameters"]
         assert field.json_schema_extra["parameters"]["radioOptions"] == ["categorical", "numerical"]
 
@@ -244,7 +244,7 @@ class TestNumberRangeField:
         field = numberrange_field()
         
         assert isinstance(field, FieldInfo)
-        assert field.json_schema_extra["type"] == FieldType.NUMBER_RANGE
+        assert field.json_schema_extra["field_type"] == FieldType.NUMBER_RANGE
 
     def test_numberrange_field_with_default(self):
         """Test numberrange_field with default value"""
@@ -298,7 +298,7 @@ class TestIntensityInputDatasetField:
         field = intensity_input_dataset_field()
         
         assert isinstance(field, FieldInfo)
-        assert field.json_schema_extra["type"] == FieldType.INTENSITY_INPUT_DATASET
+        assert field.json_schema_extra["field_type"] == FieldType.INTENSITY_INPUT_DATASET
         assert field.json_schema_extra["name"] == "Select Intensity dataset"
         assert "type" in field.json_schema_extra["parameters"]
         assert field.json_schema_extra["parameters"]["type"] == "INTENSITY"
@@ -326,7 +326,7 @@ class TestFieldHelpersIntegration:
         
         for field in field_functions:
             assert isinstance(field, FieldInfo)
-            assert "type" in field.json_schema_extra
+            assert "field_type" in field.json_schema_extra
 
     def test_field_helpers_with_consistent_parameters(self):
         """Test that field helpers handle parameters consistently"""
@@ -360,12 +360,12 @@ class TestFieldHelpersIntegration:
         """Test that field helpers maintain type consistency"""
         # Boolean field should always have boolean type
         boolean_field_instance = boolean_field()
-        assert boolean_field_instance.json_schema_extra["type"] == FieldType.BOOLEAN
+        assert boolean_field_instance.json_schema_extra["field_type"] == FieldType.BOOLEAN
         
         # String field should always have string type
         string_field_instance = string_field()
-        assert string_field_instance.json_schema_extra["type"] == FieldType.STRING
+        assert string_field_instance.json_schema_extra["field_type"] == FieldType.STRING
         
         # Number field should always have number type
         number_field_instance = number_field()
-        assert number_field_instance.json_schema_extra["type"] == FieldType.NUMBER 
+        assert number_field_instance.json_schema_extra["field_type"] == FieldType.NUMBER 
