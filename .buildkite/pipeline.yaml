@@ -5,3 +5,17 @@ steps:
       CONDA_ENV_NAME: "md_form"
     agents:
       python-r-4.3: true
+
+  - wait: ~
+    key: prep
+
+  - label: ":github: tag"
+    key: tag_package
+    depends_on: ["prep"]
+    command: scripts/tag
+    env:
+      BUILD_NUMBER: "${BUILDKITE_BUILD_NUMBER}"
+    agents:
+      ebdeploy: true
+    concurrency: 1
+    concurrency_group: "md_dataset/tag"
