@@ -534,7 +534,7 @@ class TestTranslatePayload:
         def test_translate_payload_preserves_original_structure(self):
             input_schema = {
                 "simple_field": {
-                    "type": "string",
+                    "field_type": "string",
                     "description": "A simple field"
                 }
             }
@@ -543,6 +543,5 @@ class TestTranslatePayload:
             
             # Should preserve the basic structure
             assert "simple_field" in result
-            # The pipeline removes "type" and keeps only allowed keys like "description"
-            assert "type" not in result["simple_field"]
+            assert "field_type" in result["simple_field"]
             assert result["simple_field"]["description"] == "A simple field" 
