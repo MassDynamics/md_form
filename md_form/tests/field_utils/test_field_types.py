@@ -16,6 +16,7 @@ class TestFieldType:
         assert FieldType.CONDITION_COMPARISONS == "ConditionComparisons"
         assert FieldType.CONTROL_VARIABLES == "ControlVariables"
         assert FieldType.INTENSITY_INPUT_DATASET == "DatasetSearchSelect"
+        assert FieldType.ENTITY_TYPE == "EntityType"
 
     def test_field_type_inheritance(self):
         """Test that FieldType inherits from str and Enum"""
@@ -36,12 +37,12 @@ class TestFieldType:
     def test_field_type_iteration(self):
         """Test that all field types can be iterated over"""
         field_types = list(FieldType)
-        assert len(field_types) == 9
+        assert len(field_types) == 10
         
         expected_values = [
             "String", "Boolean", "Number", "NumberRange", "ExperimentDesign",
             "DatasetSampleMetadata", "ConditionComparisons", "ControlVariables",
-            "DatasetSearchSelect"
+            "DatasetSearchSelect", "EntityType"
         ]
         
         for field_type in field_types:
