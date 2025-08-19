@@ -4,7 +4,8 @@ from pydantic.fields import FieldInfo
 from field_utils.field_helpers import (
     boolean_field, string_field, number_field, select_field,
     experiment_design_field, condition_column_field, condition_comparisons_field,
-    control_variables_field, numberrange_field, intensity_input_dataset_field
+    control_variables_field, numberrange_field, intensity_input_dataset_field,
+    entity_type_field
 )
 from field_utils.field_types import FieldType
 
@@ -306,6 +307,30 @@ class TestIntensityInputDatasetField:
         assert field.json_schema_extra["parameters"]["multiple"] is False
 
 
+class TestEntityTypeField:
+    """Test cases for the entity_type_field function"""
+
+    def test_entity_type_field_basic(self):
+        """Test entity_type_field with no parameters"""
+        field = entity_type_field()
+        
+        assert isinstance(field, FieldInfo)
+        assert field.json_schema_extra["field_type"] == FieldType.ENTITY_TYPE
+
+    def test_entity_type_field_with_default(self):
+        """Test entity_type_field with default value"""
+        field = entity_type_field(default="protein")
+        
+        assert field.json_schema_extra["default"] == "protein"
+
+    def test_entity_type_field_with_none_default(self):
+        """Test entity_type_field with None default"""
+        field = entity_type_field(default=None)
+        
+        # When default is None, it should not be included in json_schema_extra
+        assert "default" not in field.json_schema_extra
+
+
 class TestFieldHelpersIntegration:
     """Integration tests for field helpers"""
 
@@ -321,7 +346,8 @@ class TestFieldHelpersIntegration:
             condition_comparisons_field(),
             control_variables_field(),
             numberrange_field(),
-            intensity_input_dataset_field()
+            intensity_input_dataset_field(),
+            entity_type_field()
         ]
         
         for field in field_functions:

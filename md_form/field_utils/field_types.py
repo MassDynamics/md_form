@@ -14,3 +14,4 @@ class FieldType(str, Enum):
     CONDITION_COMPARISONS = "ConditionComparisons"
     CONTROL_VARIABLES = "ControlVariables"
     INTENSITY_INPUT_DATASET = "DatasetSearchSelect"
+    ENTITY_TYPE = "EntityType"

@@ -177,3 +177,16 @@ def intensity_input_dataset_field() -> Dict[str, Any]:
             },
         }
     }
+
+@field_builder(FieldType.ENTITY_TYPE)
+@typechecked
+def entity_type_field(
+    default: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Create an entity type field."""
+    result = {}
+    
+    if default is not None:
+        result["json_schema_extra"] = {"default": default}
+
+    return result
