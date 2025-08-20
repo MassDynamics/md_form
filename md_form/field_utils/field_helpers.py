@@ -193,6 +193,6 @@ def entity_type_field(
     }
     
     if default is not None:
-        result["json_schema_extra"] = {"default": default}
+        result["json_schema_extra"]["default"] = default
 
     return result
