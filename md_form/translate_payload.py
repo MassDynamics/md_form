@@ -85,14 +85,12 @@ def _remove_and_promote(schema: dict, key_to_promote: str) -> dict:
     return new_schema
 
 def _convert_enums_to_options(schema: dict) -> dict:
-    def format_name(v: str) -> str:
-        return v.strip().title()
     def _convert(node: dict) -> dict:
         if isinstance(node, dict):
             node = dict(node)
             if "enum" in node:
                 node["options"] = [
-                    {"name": format_name(v), "value": v}
+                    {"name": v, "value": v}
                     for v in node["enum"]
                 ]
                 del node["enum"]

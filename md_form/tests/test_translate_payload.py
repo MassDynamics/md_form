@@ -244,9 +244,9 @@ class TestTranslatePayload:
             assert len(result["properties"]["status"]["options"]) == 3
             
             options = result["properties"]["status"]["options"]
-            assert options[0]["name"] == "Active"
+            assert options[0]["name"] == "active"
             assert options[0]["value"] == "active"
-            assert options[1]["name"] == "Inactive"
+            assert options[1]["name"] == "inactive"
             assert options[1]["value"] == "inactive"
 
         def test_convert_enums_to_options_nested(self):
