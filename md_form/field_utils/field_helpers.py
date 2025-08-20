@@ -78,7 +78,7 @@ def select_field(
         result["discriminator"] = discriminator
     
     if options is not None:
-        options_dict = [{"name": opt.capitalize(), "value": opt} for opt in options]
+        options_dict = [{"name": opt, "value": opt} for opt in options]
         if "json_schema_extra" not in result:
             result["json_schema_extra"] = {}
         result["json_schema_extra"]["parameters"] = {"options": options_dict}

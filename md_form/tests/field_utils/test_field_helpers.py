@@ -151,9 +151,9 @@ class TestSelectField:
         field = select_field(options=options)
         
         expected_options = [
-            {"name": "Option1", "value": "option1"},
-            {"name": "Option2", "value": "option2"},
-            {"name": "Option3", "value": "option3"}
+            {"name": "option1", "value": "option1"},
+            {"name": "option2", "value": "option2"},
+            {"name": "option3", "value": "option3"}
         ]
         assert field.json_schema_extra["parameters"]["options"] == expected_options
 
