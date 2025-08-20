@@ -184,7 +184,13 @@ def entity_type_field(
     default: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Create an entity type field."""
-    result = {}
+    result = {
+        "json_schema_extra": {
+            "parameters": {
+                "datasetsSearch": {"ref": "input_datasets"}
+            }
+        }
+    }
     
     if default is not None:
         result["json_schema_extra"] = {"default": default}
