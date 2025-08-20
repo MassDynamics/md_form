@@ -23,6 +23,7 @@ def field_builder(field_type: FieldType) -> Callable[[Callable], Callable]:
             description: Optional[str] = None,
             when: Optional[When] = None,
             rules: Optional[Union[Rule, List[Rule]]] = None,
+            parameters: Optional[Dict[str, Any]] = None,
             **kwargs: Any
         ) -> Field:
             # Build json_schema_extra with common parameters
@@ -56,6 +57,13 @@ def field_builder(field_type: FieldType) -> Callable[[Callable], Callable]:
             # Merge field-specific parameters into json_schema_extra
             if "json_schema_extra" in field_params:
                 json_schema_extra.update(field_params["json_schema_extra"])
+            
+            # Add custom parameters
+            if parameters is not None:
+                if "parameters" in json_schema_extra:
+                    json_schema_extra["parameters"].update(parameters)
+                else:
+                    json_schema_extra["parameters"] = parameters
             
             # Build Field kwargs
             field_kwargs: Dict[str, Any] = {"json_schema_extra": json_schema_extra}
