@@ -150,6 +150,81 @@ class TestFieldBuilder:
         assert any(hasattr(meta, 'ge') and meta.ge == 0 for meta in field.metadata)
         assert any(hasattr(meta, 'le') and meta.le == 100 for meta in field.metadata)
 
+    def test_field_builder_with_parameters(self, simple_field_function):
+        """Test field_builder with parameters parameter"""
+        parameters = {"min": 0, "max": 100, "step": 1}
+        field = simple_field_function(parameters=parameters)
+        
+        assert "parameters" in field.json_schema_extra
+        assert field.json_schema_extra["parameters"] == parameters
+
+    def test_field_builder_with_parameters_merging(self, sample_field_function):
+        """Test field_builder with parameters merging when function already has parameters"""
+        @field_builder(FieldType.NUMBER)
+        def field_with_existing_params(**kwargs) -> Dict[str, Any]:
+            return {"json_schema_extra": {"parameters": {"existing1": "value1", "existing2": "value2"}}}
+        
+        new_parameters = {"new": "value", "existing2": "value2_new"}
+        field = field_with_existing_params(parameters=new_parameters)
+        
+        assert "parameters" in field.json_schema_extra
+        assert field.json_schema_extra["parameters"]["existing1"] == "value1"
+        assert field.json_schema_extra["parameters"]["new"] == "value"
+        assert field.json_schema_extra["parameters"]["existing2"] == "value2_new"
+
+    def test_field_builder_with_none_parameters(self, simple_field_function):
+        """Test field_builder with None parameters parameter"""
+        field = simple_field_function(parameters=None)
+        
+        # Should not include parameters in json_schema_extra when None
+        assert "parameters" not in field.json_schema_extra
+
+    def test_field_builder_with_empty_parameters(self, simple_field_function):
+        """Test field_builder with empty parameters dict"""
+        field = simple_field_function(parameters={})
+        
+        assert "parameters" in field.json_schema_extra
+        assert field.json_schema_extra["parameters"] == {}
+
+    def test_field_builder_with_nested_parameters(self, simple_field_function):
+        """Test field_builder with nested parameters structure"""
+        nested_parameters = {
+            "validation": {
+                "min": 0,
+                "max": 100
+            },
+            "ui": {
+                "component": "slider",
+                "step": 1
+            }
+        }
+        field = simple_field_function(parameters=nested_parameters)
+        
+        assert "parameters" in field.json_schema_extra
+        assert field.json_schema_extra["parameters"]["validation"]["min"] == 0
+        assert field.json_schema_extra["parameters"]["ui"]["component"] == "slider"
+
+    def test_field_builder_parameters_with_all_other_params(self, simple_field_function):
+        """Test field_builder with parameters and all other parameters together"""
+        when = When.equals("test_property", "test_value")
+        rule = RequiredRule("test_rule")
+        parameters = {"custom": "value", "number": 42}
+        
+        field = simple_field_function(
+            name="Test Field",
+            description="Test description",
+            when=when,
+            rules=rule,
+            parameters=parameters
+        )
+        
+        # Check all parameters are present
+        assert field.json_schema_extra["name"] == "Test Field"
+        assert field.json_schema_extra["description"] == "Test description"
+        assert field.json_schema_extra["when"] == when.as_dict()
+        assert field.json_schema_extra["rules"] == rule.as_dict()
+        assert field.json_schema_extra["parameters"] == parameters
+
 
 class TestFieldBuilderWithDifferentTypes:
     """Test field_builder with different field types"""
