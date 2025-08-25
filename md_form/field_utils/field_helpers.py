@@ -9,7 +9,7 @@ def boolean_field(
     default: Optional[bool] = None,
     label: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Create a boolean field with consistent parameters."""
+    """Create a boolean field."""
     result = {}
     
     if default is not None:
@@ -27,7 +27,7 @@ def boolean_field(
 def string_field(
     default: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Create a string field with consistent parameters."""
+    """Create a string field."""
     result = {}
     
     if default is not None:
@@ -42,7 +42,7 @@ def number_field(
     ge: Optional[Union[int, float]] = None,
     le: Optional[Union[int, float]] = None,
 ) -> Dict[str, Any]:
-    """Create a number field with consistent parameters."""
+    """Create a number field."""
     result = {}
     
     if default is not None:
@@ -146,7 +146,7 @@ def numberrange_field(
     le: Optional[float] = None,
     interval: Optional[float] = None,
 ) -> Dict[str, Any]:
-    """Create a number range field with consistent parameters."""
+    """Create a number range field."""
     result = {}
     if default is not None:
         result["json_schema_extra"] = {"default": default}
