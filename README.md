@@ -18,13 +18,13 @@ The package provides field helper functions for creating form fields with valida
 - `description`: Help text
 - `when`: A `When` condition to control visibility
 - `rules`: A rule or list of rules from `md_form.field_utils.rules`
-- `parameters`: Dict of custom UI parameters to merge into `json_schema_extra.parameters`. These are merged with any existing parameters from the field helper, allowing you to customize or extend the default behavior.
+- `parameters`: Dict of custom UI parameters to merge into `json_schema_extra.parameters`. These are merged with any existing parameters from the field helper, allowing you to customise or extend the default behaviour.
 
 Note: Fields are optional by default (`default=None`). Include `is_required()` in `rules` to make a field required.
 
 #### Parameter Merging
 
-The `parameters` argument allows you to customize field behavior by merging custom UI parameters with the field helper's default parameters. The merging logic works as follows:
+The `parameters` argument allows you to customise field behaviour by merging custom UI parameters with the field helper's default parameters. The merging logic works as follows:
 
 1. **Field helpers provide default parameters** - Each helper function includes sensible defaults (e.g., `select_field` includes `options`, `control_variables_field` includes `radioOptions`)
 2. **Custom parameters are merged** - Your custom `parameters` dict is merged into the existing `json_schema_extra.parameters`
@@ -117,7 +117,7 @@ when = When.equals("some_field", "value")
 
 Use the `translate_payload` function to transform JSON-schema-like payloads to a simplified form schema suitable for UI rendering.
 
-Key behaviors:
+Key behaviours:
 
 - Keeps only allowed second-layer keys: `field_type`, `parameters`, `name`, `rules`, `description`, `default`, `when`
 - Converts `enum: [v1, v2]` to `parameters.options: [{"name": v, "value": v}]` (name equals value)
