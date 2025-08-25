@@ -26,16 +26,12 @@ def boolean_field(
 @typechecked
 def string_field(
     default: Optional[str] = None,
-    disabled: Optional[bool] = False,
 ) -> Dict[str, Any]:
+    """Create a string field with consistent parameters."""
     result = {}
-    json_schema_extra = {"disabled": disabled}
     
     if default is not None:
-        json_schema_extra["default"] = default
-    
-    if json_schema_extra:
-        result["json_schema_extra"] = json_schema_extra
+        result["json_schema_extra"] = {"default": default}
     
     return result
 

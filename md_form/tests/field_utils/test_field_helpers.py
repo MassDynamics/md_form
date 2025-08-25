@@ -56,26 +56,12 @@ class TestStringField:
         
         assert isinstance(field, FieldInfo)
         assert field.json_schema_extra["field_type"] == FieldType.STRING
-        assert field.json_schema_extra["disabled"] is False
 
     def test_string_field_with_default(self):
         """Test string_field with default value"""
         field = string_field(default="test_value")
         
         assert field.json_schema_extra["default"] == "test_value"
-
-    def test_string_field_with_disabled(self):
-        """Test string_field with disabled parameter"""
-        field = string_field(disabled=True)
-        
-        assert field.json_schema_extra["disabled"] is True
-
-    def test_string_field_with_default_and_disabled(self):
-        """Test string_field with both default and disabled"""
-        field = string_field(default="test", disabled=True)
-        
-        assert field.json_schema_extra["default"] == "test"
-        assert field.json_schema_extra["disabled"] is True
 
 
 class TestNumberField:
@@ -358,7 +344,7 @@ class TestFieldHelpersIntegration:
         """Test that field helpers handle parameters consistently"""
         # Test with None parameters
         boolean_none = boolean_field(default=None, label=None)
-        string_none = string_field(default=None, disabled=None)
+        string_none = string_field(default=None)
         number_none = number_field(default=None, ge=None, le=None)
         
         # Should not include None values in json_schema_extra
