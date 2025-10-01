@@ -88,6 +88,10 @@ def experiment_design_field() -> Dict[str, Any]:
     return {
         "json_schema_extra": {
             "name": "Sample Metadata",
+            "parameters": {
+                "datasetsSearch": {"ref": "input_datasets"},
+                "columnNames": {"ref": ["condition_column", "control_variables[].column"]}
+            }
         }
     }
 
