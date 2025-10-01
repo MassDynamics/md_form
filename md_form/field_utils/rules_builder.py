@@ -40,11 +40,11 @@ def has_unique_in_column(column: str) -> ColumnValidationRule:
     return ColumnValidationRule(function_name, column)
 
 @typechecked
-def is_all_unique_in_column_from_field(field: str) -> ColumnFromFieldValidationRule:
+def is_all_unique_in_column_from_field(values: str) -> ColumnFromFieldValidationRule:
     function_name = inspect.currentframe().f_code.co_name
-    return ColumnFromFieldValidationRule(function_name, field)
+    return ColumnFromFieldValidationRule(function_name, values)
 
 @typechecked
-def has_multiple_column_values_from_field_in_table(field: str) -> ColumnFromFieldValidationRule:
+def has_multiple_column_values_from_field_in_table(values: str, field: Optional[str] = None) -> ColumnFromFieldValidationRule:
     function_name = inspect.currentframe().f_code.co_name
-    return ColumnFromFieldValidationRule(function_name, field) 
+    return ColumnFromFieldValidationRule(function_name, values, field) 

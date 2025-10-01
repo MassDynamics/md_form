@@ -60,14 +60,16 @@ class ColumnValidationRule(Rule):
 
 class ColumnFromFieldValidationRule(Rule):
     """Base class for column validation rules that reference a field"""
-    def __init__(self, rule_name: str, field: str):
+    def __init__(self, rule_name: str, values: str, field: Optional[str] = None):
         self.rule_name = rule_name
         self.field = field
+        self.values = values
     
     def as_dict(self) -> Dict[str, Any]:
+        parameters = {"values": self.values}
+        if self.field is not None:
+            parameters["field"] = self.field
         return {
             "name": self.rule_name,
-            "parameters": {
-                "field": self.field
-            }
+            "parameters": parameters
         } 

@@ -132,34 +132,36 @@ class TestRulesBuilder:
 
     def test_is_all_unique_in_column_from_field(self):
         """Test is_all_unique_in_column_from_field function"""
-        rule = is_all_unique_in_column_from_field("test_field")
+        rule = is_all_unique_in_column_from_field("test_values")
         
         assert isinstance(rule, ColumnFromFieldValidationRule)
         assert rule.rule_name == "is_all_unique_in_column_from_field"
-        assert rule.field == "test_field"
+        assert rule.values == "test_values"
+        assert rule.field is None
         
         result = rule.as_dict()
         expected = {
             "name": "is_all_unique_in_column_from_field",
             "parameters": {
-                "field": "test_field"
+                "values": "test_values"
             }
         }
         assert result == expected
 
     def test_has_multiple_column_values_from_field_in_table(self):
         """Test has_multiple_column_values_from_field_in_table function"""
-        rule = has_multiple_column_values_from_field_in_table("test_field")
+        rule = has_multiple_column_values_from_field_in_table("test_values")
         
         assert isinstance(rule, ColumnFromFieldValidationRule)
         assert rule.rule_name == "has_multiple_column_values_from_field_in_table"
-        assert rule.field == "test_field"
+        assert rule.values == "test_values"
+        assert rule.field is None
         
         result = rule.as_dict()
         expected = {
             "name": "has_multiple_column_values_from_field_in_table",
             "parameters": {
-                "field": "test_field"
+                "values": "test_values"
             }
         }
         assert result == expected
@@ -229,8 +231,8 @@ class TestRulesBuilderWithDifferentValues:
         assert rule2.field == "field_with_underscores"
         
         # Field name with dashes
-        rule3 = is_all_unique_in_column_from_field("field-with-dashes")
-        assert rule3.field == "field-with-dashes"
+        rule3 = is_all_unique_in_column_from_field("values-with-dashes")
+        assert rule3.values == "values-with-dashes"
 
 
 class TestRulesBuilderFunctionNames:

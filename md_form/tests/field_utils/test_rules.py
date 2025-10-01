@@ -208,14 +208,15 @@ class TestColumnFromFieldValidationRule:
     @pytest.fixture
     def column_from_field_rule(self):
         """Fixture for a ColumnFromFieldValidationRule instance"""
-        return ColumnFromFieldValidationRule("test_rule", "test_field")
+        return ColumnFromFieldValidationRule("test_rule", "test_values")
 
     def test_column_from_field_validation_rule_initialization(self):
         """Test ColumnFromFieldValidationRule initialization"""
-        rule = ColumnFromFieldValidationRule("rule_name", "field_name")
+        rule = ColumnFromFieldValidationRule("rule_name", "values_name")
         
         assert rule.rule_name == "rule_name"
-        assert rule.field == "field_name"
+        assert rule.values == "values_name"
+        assert rule.field is None
 
     def test_column_from_field_validation_rule_as_dict(self, column_from_field_rule):
         """Test as_dict method for ColumnFromFieldValidationRule"""
@@ -224,7 +225,7 @@ class TestColumnFromFieldValidationRule:
         expected = {
             "name": "test_rule",
             "parameters": {
-                "field": "test_field"
+                "values": "test_values"
             }
         }
         assert result == expected
@@ -232,14 +233,14 @@ class TestColumnFromFieldValidationRule:
     def test_column_from_field_validation_rule_with_different_field_names(self):
         """Test ColumnFromFieldValidationRule with different field names"""
         # Simple field name
-        rule1 = ColumnFromFieldValidationRule("rule", "simple_field")
+        rule1 = ColumnFromFieldValidationRule("rule", "simple_values")
         result = rule1.as_dict()
-        assert result["parameters"]["field"] == "simple_field"
+        assert result["parameters"]["values"] == "simple_values"
         
         # Field name with underscores
-        rule2 = ColumnFromFieldValidationRule("rule", "field_with_underscores")
+        rule2 = ColumnFromFieldValidationRule("rule", "values_with_underscores")
         result = rule2.as_dict()
-        assert result["parameters"]["field"] == "field_with_underscores"
+        assert result["parameters"]["values"] == "values_with_underscores"
 
 
 class TestRulesIntegration:
@@ -282,10 +283,10 @@ class TestRulesIntegration:
         column_dict = column_rule.as_dict()
         assert "column" in column_dict["parameters"]
         
-        # ColumnFromFieldValidationRule has "field" parameter
-        column_field_rule = ColumnFromFieldValidationRule("test", "field")
+        # ColumnFromFieldValidationRule has "values" parameter
+        column_field_rule = ColumnFromFieldValidationRule("test", "values")
         column_field_dict = column_field_rule.as_dict()
-        assert "field" in column_field_dict["parameters"]
+        assert "values" in column_field_dict["parameters"]
 
     def test_rule_inheritance(self):
         """Test that all rule classes inherit from Rule"""
