@@ -30,7 +30,7 @@ def is_required() -> RequiredRule:
     return RequiredRule(function_name)
 
 @typechecked
-def is_all_unique_in_column(column: str) -> ColumnValidationRule:
+def has_unique_column_values_in_table(column: str) -> ColumnValidationRule:
     function_name = inspect.currentframe().f_code.co_name
     return ColumnValidationRule(function_name, column)
 

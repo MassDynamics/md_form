@@ -3,7 +3,7 @@ import inspect
 from field_utils.rules_builder import (
     is_equal_to_value, is_not_equal_to_value,
     is_equal_to_value_from_field, is_not_included_in_values_from_field,
-    is_required, is_all_unique_in_column, has_unique_in_column,
+    is_required, has_unique_column_values_in_table, has_unique_in_column,
     is_all_unique_in_column_from_field, has_unique_in_column_from_field
 )
 from field_utils.rules import (
@@ -96,17 +96,17 @@ class TestRulesBuilder:
         }
         assert result == expected
 
-    def test_is_all_unique_in_column(self):
-        """Test is_all_unique_in_column function"""
-        rule = is_all_unique_in_column("test_column")
+    def test_has_unique_column_values_in_table(self):
+        """Test has_unique_column_values_in_table function"""
+        rule = has_unique_column_values_in_table("test_column")
         
         assert isinstance(rule, ColumnValidationRule)
-        assert rule.rule_name == "is_all_unique_in_column"
+        assert rule.rule_name == "has_unique_column_values_in_table"
         assert rule.column == "test_column"
         
         result = rule.as_dict()
         expected = {
-            "name": "is_all_unique_in_column",
+            "name": "has_unique_column_values_in_table",
             "parameters": {
                 "column": "test_column"
             }
@@ -207,7 +207,7 @@ class TestRulesBuilderWithDifferentValues:
     def test_column_functions_with_different_column_names(self):
         """Test column functions with different column names"""
         # Simple column name
-        rule1 = is_all_unique_in_column("simple_column")
+        rule1 = has_unique_column_values_in_table("simple_column")
         assert rule1.column == "simple_column"
         
         # Column name with spaces
@@ -215,7 +215,7 @@ class TestRulesBuilderWithDifferentValues:
         assert rule2.column == "column with spaces"
         
         # Column name with special characters
-        rule3 = is_all_unique_in_column("column_123")
+        rule3 = has_unique_column_values_in_table("column_123")
         assert rule3.column == "column_123"
 
     def test_field_functions_with_different_field_names(self):
@@ -254,8 +254,8 @@ class TestRulesBuilderFunctionNames:
         rule5 = is_required()
         assert rule5.rule_name == "is_required"
         
-        rule6 = is_all_unique_in_column("test")
-        assert rule6.rule_name == "is_all_unique_in_column"
+        rule6 = has_unique_column_values_in_table("test")
+        assert rule6.rule_name == "has_unique_column_values_in_table"
         
         rule7 = has_unique_in_column("test")
         assert rule7.rule_name == "has_unique_in_column"
@@ -284,7 +284,7 @@ class TestRulesBuilderIntegration:
         assert isinstance(is_required(), RequiredRule)
         
         # Column validation rules
-        assert isinstance(is_all_unique_in_column("test"), ColumnValidationRule)
+        assert isinstance(has_unique_column_values_in_table("test"), ColumnValidationRule)
         assert isinstance(has_unique_in_column("test"), ColumnValidationRule)
         
         # Column from field validation rules
@@ -299,7 +299,7 @@ class TestRulesBuilderIntegration:
             is_equal_to_value_from_field("test_field"),
             is_not_included_in_values_from_field("test_field"),
             is_required(),
-            is_all_unique_in_column("test_column"),
+            has_unique_column_values_in_table("test_column"),
             has_unique_in_column("test_column"),
             is_all_unique_in_column_from_field("test_field"),
             has_unique_in_column_from_field("test_field")
