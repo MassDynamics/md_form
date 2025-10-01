@@ -87,7 +87,7 @@ def experiment_design_field() -> Dict[str, Any]:
     """Create an experiment design field."""
     return {
         "json_schema_extra": {
-            "name": "Experiment Design",
+            "name": "Sample Metadata",
         }
     }
 

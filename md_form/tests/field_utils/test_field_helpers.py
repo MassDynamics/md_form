@@ -172,7 +172,7 @@ class TestExperimentDesignField:
         
         assert isinstance(field, FieldInfo)
         assert field.json_schema_extra["fieldType"] == FieldType.EXPERIMENT_DESIGN
-        assert field.json_schema_extra["name"] == "Experiment Design"
+        assert field.json_schema_extra["name"] == "Sample Metadata"
 
 
 class TestConditionColumnField:
