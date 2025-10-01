@@ -132,7 +132,8 @@ def control_variables_field(
         result["json_schema_extra"] = {}
     
     result["json_schema_extra"]["parameters"] = {
-        "radioOptions": ["categorical", "numerical"]
+        "radioOptions": ["categorical", "numerical"],
+        "datasetsSearch": { "ref": "input_datasets" },
     }
     
     return result
