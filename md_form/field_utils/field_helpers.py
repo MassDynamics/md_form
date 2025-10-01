@@ -110,7 +110,7 @@ def condition_comparisons_field() -> Dict[str, Any]:
     return {
         "json_schema_extra": {
             "parameters": {
-                "experimentDesigns": {"ref": "experiment_design"},
+                "experimentDesign": {"ref": "experiment_design"},
                 "conditionColumn": {"ref": "condition_column"}
             }
         }

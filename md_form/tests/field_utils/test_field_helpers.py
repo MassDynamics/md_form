@@ -197,9 +197,9 @@ class TestConditionComparisonsField:
         
         assert isinstance(field, FieldInfo)
         assert field.json_schema_extra["fieldType"] == FieldType.CONDITION_COMPARISONS
-        assert "experimentDesigns" in field.json_schema_extra["parameters"]
+        assert "experimentDesign" in field.json_schema_extra["parameters"]
         assert "conditionColumn" in field.json_schema_extra["parameters"]
-        assert field.json_schema_extra["parameters"]["experimentDesigns"]["ref"] == "experiment_design"
+        assert field.json_schema_extra["parameters"]["experimentDesign"]["ref"] == "experiment_design"
         assert field.json_schema_extra["parameters"]["conditionColumn"]["ref"] == "condition_column"
 
 
