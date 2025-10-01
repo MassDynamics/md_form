@@ -119,7 +119,7 @@ Use the `translate_payload` function to transform JSON-schema-like payloads to a
 
 Key behaviours:
 
-- Keeps only allowed second-layer keys: `field_type`, `parameters`, `name`, `rules`, `description`, `default`, `when`
+- Keeps only allowed second-layer keys: `fieldType`, `parameters`, `name`, `rules`, `description`, `default`, `when`
 - Converts `enum: [v1, v2]` to `parameters.options: [{"name": v, "value": v}]` (name equals value)
 - Renames keys: `maximum/minimum -> max/min`, `maxItems/minItems -> max/min`
 - Moves `options`, `min`, `max` into `parameters`

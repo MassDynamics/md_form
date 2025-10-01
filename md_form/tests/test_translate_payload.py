@@ -534,7 +534,7 @@ class TestTranslatePayload:
         def test_translate_payload_preserves_original_structure(self):
             input_schema = {
                 "simple_field": {
-                    "field_type": "string",
+                    "fieldType": "string",
                     "description": "A simple field"
                 }
             }
@@ -543,5 +543,5 @@ class TestTranslatePayload:
             
             # Should preserve the basic structure
             assert "simple_field" in result
-            assert "field_type" in result["simple_field"]
+            assert "fieldType" in result["simple_field"]
             assert result["simple_field"]["description"] == "A simple field" 
