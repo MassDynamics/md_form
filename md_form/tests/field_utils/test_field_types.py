@@ -11,11 +11,11 @@ class TestFieldType:
         assert FieldType.BOOLEAN == "Boolean"
         assert FieldType.NUMBER == "Number"
         assert FieldType.NUMBER_RANGE == "NumberRange"
-        assert FieldType.EXPERIMENT_DESIGN == "ExperimentDesign"
+        assert FieldType.EXPERIMENT_DESIGN == "SampleMetadataTable"
         assert FieldType.CONDITION_COLUMN == "DatasetSampleMetadata"
-        assert FieldType.CONDITION_COMPARISONS == "ConditionComparisons"
-        assert FieldType.CONTROL_VARIABLES == "ControlVariables"
-        assert FieldType.INTENSITY_INPUT_DATASET == "DatasetSearchSelect"
+        assert FieldType.CONDITION_COMPARISONS == "PairwiseConditionComparisons"
+        assert FieldType.CONTROL_VARIABLES == "PairwiseControlVariables"
+        assert FieldType.INTENSITY_INPUT_DATASET == "Datasets"
         assert FieldType.ENTITY_TYPE == "EntityType"
 
     def test_field_type_inheritance(self):
@@ -40,9 +40,9 @@ class TestFieldType:
         assert len(field_types) == 10
         
         expected_values = [
-            "String", "Boolean", "Number", "NumberRange", "ExperimentDesign",
-            "DatasetSampleMetadata", "ConditionComparisons", "ControlVariables",
-            "DatasetSearchSelect", "EntityType"
+            "String", "Boolean", "Number", "NumberRange", "SampleMetadataTable",
+            "DatasetSampleMetadata", "PairwiseConditionComparisons", "PairwiseControlVariables",
+            "Datasets", "EntityType"
         ]
         
         for field_type in field_types:
