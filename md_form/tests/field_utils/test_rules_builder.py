@@ -4,7 +4,7 @@ from field_utils.rules_builder import (
     is_equal_to_value, is_not_equal_to_value,
     is_equal_to_value_from_field, is_not_included_in_values_from_field,
     is_required, has_unique_column_values_in_table, has_unique_in_column,
-    is_all_unique_in_column_from_field, has_unique_in_column_from_field
+    is_all_unique_in_column_from_field, has_multiple_column_values_from_field_in_table
 )
 from field_utils.rules import (
     EqualsToValueRule, EqualsToFieldRule, RequiredRule,
@@ -147,17 +147,17 @@ class TestRulesBuilder:
         }
         assert result == expected
 
-    def test_has_unique_in_column_from_field(self):
-        """Test has_unique_in_column_from_field function"""
-        rule = has_unique_in_column_from_field("test_field")
+    def test_has_multiple_column_values_from_field_in_table(self):
+        """Test has_multiple_column_values_from_field_in_table function"""
+        rule = has_multiple_column_values_from_field_in_table("test_field")
         
         assert isinstance(rule, ColumnFromFieldValidationRule)
-        assert rule.rule_name == "has_unique_in_column_from_field"
+        assert rule.rule_name == "has_multiple_column_values_from_field_in_table"
         assert rule.field == "test_field"
         
         result = rule.as_dict()
         expected = {
-            "name": "has_unique_in_column_from_field",
+            "name": "has_multiple_column_values_from_field_in_table",
             "parameters": {
                 "field": "test_field"
             }
@@ -263,8 +263,8 @@ class TestRulesBuilderFunctionNames:
         rule8 = is_all_unique_in_column_from_field("test")
         assert rule8.rule_name == "is_all_unique_in_column_from_field"
         
-        rule9 = has_unique_in_column_from_field("test")
-        assert rule9.rule_name == "has_unique_in_column_from_field"
+        rule9 = has_multiple_column_values_from_field_in_table("test")
+        assert rule9.rule_name == "has_multiple_column_values_from_field_in_table"
 
 
 class TestRulesBuilderIntegration:
@@ -289,7 +289,7 @@ class TestRulesBuilderIntegration:
         
         # Column from field validation rules
         assert isinstance(is_all_unique_in_column_from_field("test"), ColumnFromFieldValidationRule)
-        assert isinstance(has_unique_in_column_from_field("test"), ColumnFromFieldValidationRule)
+        assert isinstance(has_multiple_column_values_from_field_in_table("test"), ColumnFromFieldValidationRule)
 
     def test_all_functions_produce_valid_dicts(self):
         """Test that all functions produce valid dictionary representations"""
@@ -302,7 +302,7 @@ class TestRulesBuilderIntegration:
             has_unique_column_values_in_table("test_column"),
             has_unique_in_column("test_column"),
             is_all_unique_in_column_from_field("test_field"),
-            has_unique_in_column_from_field("test_field")
+            has_multiple_column_values_from_field_in_table("test_field")
         ]
         
         for rule in rules:

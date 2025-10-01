@@ -26,7 +26,7 @@ from .rules_builder import (
     has_unique_column_values_in_table,
     has_unique_in_column,
     is_all_unique_in_column_from_field,
-    has_unique_in_column_from_field,
+    has_multiple_column_values_from_field_in_table,
 )
 
 # Import When class
@@ -57,7 +57,7 @@ __all__ = [
     "has_unique_column_values_in_table",
     "has_unique_in_column",
     "is_all_unique_in_column_from_field",
-    "has_unique_in_column_from_field",
+    "has_multiple_column_values_from_field_in_table",
     
     # Classes
     "When",
