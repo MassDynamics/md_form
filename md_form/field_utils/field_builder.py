@@ -24,6 +24,7 @@ def field_builder(field_type: FieldType) -> Callable[[Callable], Callable]:
             when: Optional[When] = None,
             rules: Optional[Union[Rule, List[Rule]]] = None,
             parameters: Optional[Dict[str, Any]] = None,
+            group: Optional[str] = None,
             **kwargs: Any
         ) -> Field:
             # Build json_schema_extra with common parameters
@@ -37,6 +38,8 @@ def field_builder(field_type: FieldType) -> Callable[[Callable], Callable]:
                 json_schema_extra["description"] = description
             if when is not None:
                 json_schema_extra["when"] = when.as_dict()
+            if group is not None:
+                json_schema_extra["group"] = group
             
             # Handle validation rules
             if rules is not None:
