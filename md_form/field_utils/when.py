@@ -15,5 +15,9 @@ class When:
     def not_equals(cls, property: str, value: Any):
         return cls(property, "not_equals", value)
 
+    @classmethod
+    def is_present(cls, property: str):
+        return cls(property, "is_present", True)
+
     def as_dict(self) -> Dict[str, Any]:
         return {"property": self.property, self.condition_type: self.value}
