@@ -27,12 +27,12 @@ class EqualsToFieldRule(Rule):
         self.values = values
     
     def as_dict(self) -> Dict[str, Any]:
+        parameters = {"field": self.field}
+        if self.values is not None:
+            parameters["values"] = self.values
         return {
             "name": self.rule_name,
-            "parameters": {
-                "field": self.field,
-                "values": self.values
-            }
+            "parameters": parameters
         }
 
 class RequiredRule(Rule):
