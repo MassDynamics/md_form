@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Optional
 from .rules import EqualsToValueRule, EqualsToFieldRule, ColumnValidationRule, ColumnFromFieldValidationRule, RequiredRule
 from typeguard import typechecked
 import inspect
@@ -20,9 +20,9 @@ def is_equal_to_value_from_field(field: str) -> EqualsToFieldRule:
     return EqualsToFieldRule(function_name, field)
 
 @typechecked
-def is_not_equal_to_value_from_field(field: str) -> EqualsToFieldRule:
+def is_not_included_in_values_from_field(field: str, values: Optional[str] = None) -> EqualsToFieldRule:
     function_name = inspect.currentframe().f_code.co_name
-    return EqualsToFieldRule(function_name, field)
+    return EqualsToFieldRule(function_name, field, values)
 
 @typechecked
 def is_required() -> RequiredRule:

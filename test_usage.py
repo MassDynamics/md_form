@@ -7,7 +7,7 @@ from md_form import translate_payload
 from md_form.field_utils import (
     condition_column_field,
     is_not_equal_to_value,
-    is_not_equal_to_value_from_field,
+    is_not_included_in_values_from_field,
     is_required,
     When
 )
@@ -21,7 +21,7 @@ def test_field_helpers():
         name="Condition Column",
         rules=[
             is_not_equal_to_value("sample_name"),
-            is_not_equal_to_value_from_field("control_variables"),
+            is_not_included_in_values_from_field("control_variables"),
             is_required(),
         ],
         when=When.not_equals("input_datasets", None)

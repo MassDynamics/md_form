@@ -1,4 +1,4 @@
-from typing import Any, Dict, Union, Literal
+from typing import Any, Dict, Union, Literal, Optional
 
 class Rule:
     """Base class for validation rules"""
@@ -21,15 +21,17 @@ class EqualsToValueRule(Rule):
 
 class EqualsToFieldRule(Rule):
     """Validation rule for when a field value should equal/not equal another field's value"""
-    def __init__(self, rule_name: str, field: str):
+    def __init__(self, rule_name: str, field: str, values: Optional[str] = None):
         self.rule_name = rule_name
         self.field = field
+        self.values = values
     
     def as_dict(self) -> Dict[str, Any]:
         return {
             "name": self.rule_name,
             "parameters": {
-                "field": self.field
+                "field": self.field,
+                "values": self.values
             }
         }
 

@@ -2,7 +2,7 @@ import pytest
 import inspect
 from field_utils.rules_builder import (
     is_equal_to_value, is_not_equal_to_value,
-    is_equal_to_value_from_field, is_not_equal_to_value_from_field,
+    is_equal_to_value_from_field, is_not_included_in_values_from_field,
     is_required, is_all_unique_in_column, has_unique_in_column,
     is_all_unique_in_column_from_field, has_unique_in_column_from_field
 )
@@ -67,16 +67,16 @@ class TestRulesBuilder:
         assert result == expected
 
     def test_is_not_equal_to_value_from_field(self):
-        """Test is_not_equal_to_value_from_field function"""
-        rule = is_not_equal_to_value_from_field("test_field")
+        """Test is_not_included_in_values_from_field function"""
+        rule = is_not_included_in_values_from_field("test_field")
         
         assert isinstance(rule, EqualsToFieldRule)
-        assert rule.rule_name == "is_not_equal_to_value_from_field"
+        assert rule.rule_name == "is_not_included_in_values_from_field"
         assert rule.field == "test_field"
         
         result = rule.as_dict()
         expected = {
-            "name": "is_not_equal_to_value_from_field",
+            "name": "is_not_included_in_values_from_field",
             "parameters": {
                 "field": "test_field"
             }
@@ -225,7 +225,7 @@ class TestRulesBuilderWithDifferentValues:
         assert rule1.field == "simple_field"
         
         # Field name with underscores
-        rule2 = is_not_equal_to_value_from_field("field_with_underscores")
+        rule2 = is_not_included_in_values_from_field("field_with_underscores")
         assert rule2.field == "field_with_underscores"
         
         # Field name with dashes
@@ -248,8 +248,8 @@ class TestRulesBuilderFunctionNames:
         rule3 = is_equal_to_value_from_field("test")
         assert rule3.rule_name == "is_equal_to_value_from_field"
         
-        rule4 = is_not_equal_to_value_from_field("test")
-        assert rule4.rule_name == "is_not_equal_to_value_from_field"
+        rule4 = is_not_included_in_values_from_field("test")
+        assert rule4.rule_name == "is_not_included_in_values_from_field"
         
         rule5 = is_required()
         assert rule5.rule_name == "is_required"
@@ -278,7 +278,7 @@ class TestRulesBuilderIntegration:
         
         # Field-based rules
         assert isinstance(is_equal_to_value_from_field("test"), EqualsToFieldRule)
-        assert isinstance(is_not_equal_to_value_from_field("test"), EqualsToFieldRule)
+        assert isinstance(is_not_included_in_values_from_field("test"), EqualsToFieldRule)
         
         # Required rule
         assert isinstance(is_required(), RequiredRule)
@@ -297,7 +297,7 @@ class TestRulesBuilderIntegration:
             is_equal_to_value("test_value"),
             is_not_equal_to_value("test_value"),
             is_equal_to_value_from_field("test_field"),
-            is_not_equal_to_value_from_field("test_field"),
+            is_not_included_in_values_from_field("test_field"),
             is_required(),
             is_all_unique_in_column("test_column"),
             has_unique_in_column("test_column"),
@@ -322,7 +322,7 @@ class TestRulesBuilderIntegration:
         
         # Test that field-based functions work consistently
         equal_field_rule = is_equal_to_value_from_field("test")
-        not_equal_field_rule = is_not_equal_to_value_from_field("test")
+        not_equal_field_rule = is_not_included_in_values_from_field("test")
         
         assert equal_field_rule.field == not_equal_field_rule.field
         assert equal_field_rule.rule_name != not_equal_field_rule.rule_name 
