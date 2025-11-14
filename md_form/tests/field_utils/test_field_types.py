@@ -13,6 +13,7 @@ class TestFieldType:
         assert FieldType.NUMBER_RANGE == "NumberRange"
         assert FieldType.EXPERIMENT_DESIGN == "SampleMetadataTable"
         assert FieldType.CONDITION_COLUMN == "DatasetSampleMetadata"
+        assert FieldType.CONDITION_COLUMN_MULTI_SELECT == "SelectBySampleMetadataField"
         assert FieldType.CONDITION_COMPARISONS == "PairwiseConditionComparisons"
         assert FieldType.CONTROL_VARIABLES == "PairwiseControlVariables"
         assert FieldType.INTENSITY_INPUT_DATASET == "Datasets"
@@ -37,12 +38,12 @@ class TestFieldType:
     def test_field_type_iteration(self):
         """Test that all field types can be iterated over"""
         field_types = list(FieldType)
-        assert len(field_types) == 10
+        assert len(field_types) == 11
         
         expected_values = [
             "String", "Boolean", "Number", "NumberRange", "SampleMetadataTable",
-            "DatasetSampleMetadata", "PairwiseConditionComparisons", "PairwiseControlVariables",
-            "Datasets", "EntityType"
+            "DatasetSampleMetadata", "SelectBySampleMetadataField", "PairwiseConditionComparisons",
+            "PairwiseControlVariables", "Datasets", "EntityType"
         ]
         
         for field_type in field_types:

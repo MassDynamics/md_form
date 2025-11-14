@@ -3,9 +3,9 @@ from typing import Dict, Any
 from pydantic.fields import FieldInfo
 from field_utils.field_helpers import (
     boolean_field, string_field, number_field, select_field,
-    experiment_design_field, condition_column_field, condition_comparisons_field,
-    control_variables_field, numberrange_field, intensity_input_dataset_field,
-    entity_type_field
+    experiment_design_field, condition_column_field, condition_column_multi_select_field,
+    condition_comparisons_field, control_variables_field, numberrange_field,
+    intensity_input_dataset_field, entity_type_field
 )
 from field_utils.field_types import FieldType
 
@@ -188,6 +188,19 @@ class TestConditionColumnField:
         assert field.json_schema_extra["parameters"]["datasetsSearch"]["ref"] == "input_datasets"
 
 
+class TestConditionColumnMultiSelectField:
+    """Test cases for the condition_column_multi_select_field function"""
+
+    def test_condition_column_multi_select_field(self):
+        """Test condition_column_multi_select_field"""
+        field = condition_column_multi_select_field()
+        
+        assert isinstance(field, FieldInfo)
+        assert field.json_schema_extra["fieldType"] == FieldType.CONDITION_COLUMN_MULTI_SELECT
+        assert "datasetsSearch" in field.json_schema_extra["parameters"]
+        assert field.json_schema_extra["parameters"]["datasetsSearch"]["ref"] == "input_datasets"
+
+
 class TestConditionComparisonsField:
     """Test cases for the condition_comparisons_field function"""
 
@@ -329,6 +342,7 @@ class TestFieldHelpersIntegration:
             select_field(),
             experiment_design_field(),
             condition_column_field(),
+            condition_column_multi_select_field(),
             condition_comparisons_field(),
             control_variables_field(),
             numberrange_field(),

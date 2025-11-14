@@ -11,6 +11,7 @@ class FieldType(str, Enum):
     NUMBER_RANGE = "NumberRange"
     EXPERIMENT_DESIGN = "SampleMetadataTable"
     CONDITION_COLUMN = "DatasetSampleMetadata"
+    CONDITION_COLUMN_MULTI_SELECT = "SelectBySampleMetadataField"
     CONDITION_COMPARISONS = "PairwiseConditionComparisons"
     CONTROL_VARIABLES = "PairwiseControlVariables"
     INTENSITY_INPUT_DATASET = "Datasets"

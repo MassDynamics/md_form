@@ -107,6 +107,17 @@ def condition_column_field() -> Dict[str, Any]:
         }
     }
 
+@field_builder(FieldType.CONDITION_COLUMN_MULTI_SELECT)
+def condition_column_multi_select_field() -> Dict[str, Any]:
+    """Create a condition column multi select field."""
+    return {
+        "json_schema_extra": {
+            "parameters": {
+                "datasetsSearch": {"ref": "input_datasets"}
+            }
+        }
+    }
+
 
 @field_builder(FieldType.CONDITION_COMPARISONS)
 def condition_comparisons_field() -> Dict[str, Any]:
