@@ -13,7 +13,7 @@ class TestFieldType:
         assert FieldType.NUMBER_RANGE == "NumberRange"
         assert FieldType.EXPERIMENT_DESIGN == "SampleMetadataTable"
         assert FieldType.CONDITION_COLUMN == "DatasetSampleMetadata"
-        assert FieldType.CONDITION_COLUMN_MULTI_SELECT == "SelectBySampleMetadataField"
+        assert FieldType.CONDITION_COLUMN_MULTI_SELECT == "SelectBySampleMetadata"
         assert FieldType.CONDITION_COMPARISONS == "PairwiseConditionComparisons"
         assert FieldType.CONTROL_VARIABLES == "PairwiseControlVariables"
         assert FieldType.INTENSITY_INPUT_DATASET == "Datasets"
