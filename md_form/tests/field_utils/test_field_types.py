@@ -42,7 +42,7 @@ class TestFieldType:
         
         expected_values = [
             "String", "Boolean", "Number", "NumberRange", "SampleMetadataTable",
-            "DatasetSampleMetadata", "SelectBySampleMetadataField", "PairwiseConditionComparisons",
+            "DatasetSampleMetadata", "SelectBySampleMetadata", "PairwiseConditionComparisons",
             "PairwiseControlVariables", "Datasets", "EntityType"
         ]
         
