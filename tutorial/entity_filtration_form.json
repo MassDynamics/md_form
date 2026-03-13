@@ -1,0 +1,58 @@
+{
+  "properties": {
+    "entity_type": {
+      "default": "peptide",
+      "description": "Entity type of the intensity dataset (peptide enables PTM options).",
+      "fieldType": "String",
+      "name": "Entity Type",
+      "parameters": {
+        "options": [
+          {
+            "name": "peptide",
+            "value": "peptide"
+          },
+          {
+            "name": "protein",
+            "value": "protein"
+          },
+          {
+            "name": "gene",
+            "value": "gene"
+          }
+        ]
+      },
+      "rules": [
+        {
+          "name": "is_required"
+        }
+      ]
+    },
+    "filtration_methods": {
+      "default": "none",
+      "fieldType": "String",
+      "name": "Filtration Methods",
+      "parameters": {
+        "options": [
+          {
+            "name": "none",
+            "value": "none"
+          },
+          {
+            "name": "ptm_localization_probability",
+            "value": "ptm_localization_probability",
+            "when": {
+              "property": "entity_type",
+              "equals": "peptide"
+            }
+          }
+        ]
+      },
+      "rules": [
+        {
+          "name": "is_required"
+        }
+      ]
+    },
+    "$defs": {}
+  }
+}

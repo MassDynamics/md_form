@@ -1,0 +1,104 @@
+{
+  "properties": {
+    "input_datasets": {
+      "fieldType": "Datasets",
+      "name": "Select Intensity dataset",
+      "group": "Details",
+      "parameters": {
+        "multiple": false,
+        "type": "INTENSITY",
+        "width": "large",
+        "min": 1,
+        "max": 1
+      },
+      "rules": [
+        {
+          "name": "is_required"
+        }
+      ]
+    },
+    "normalisation_method": {
+      "default": "none",
+      "description": "Method passed to limma normalizeBetweenArrays().",
+      "fieldType": "String",
+      "name": "Normalisation Method",
+      "parameters": {
+        "options": [
+          {
+            "name": "none",
+            "value": "none"
+          },
+          {
+            "name": "scale",
+            "value": "scale"
+          },
+          {
+            "name": "quantile",
+            "value": "quantile"
+          }
+        ]
+      },
+      "when": {
+        "is_present": true,
+        "property": "input_datasets"
+      },
+      "group": "Transform Parameters"
+    },
+    "p_value_threshold": {
+      "default": 0.05,
+      "description": "Threshold for statistical significance.",
+      "fieldType": "Number",
+      "name": "P-value Threshold",
+      "parameters": {
+        "min": 0.0,
+        "max": 1.0
+      },
+      "when": {
+        "is_present": true,
+        "property": "input_datasets"
+      },
+      "group": "Transform Parameters"
+    },
+    "apply_log_transform": {
+      "default": false,
+      "description": "Whether to log2-transform intensities.",
+      "fieldType": "Boolean",
+      "name": "Log Transform",
+      "parameters": {
+        "label": "Apply log2 transform"
+      },
+      "when": {
+        "is_present": true,
+        "property": "input_datasets"
+      },
+      "group": "Transform Parameters"
+    },
+    "output_prefix": {
+      "default": "transformed",
+      "description": "Prefix for output dataset name.",
+      "fieldType": "String",
+      "name": "Output Prefix",
+      "when": {
+        "is_present": true,
+        "property": "input_datasets"
+      },
+      "group": "Transform Parameters"
+    },
+    "intensity_range": {
+      "default": 0.5,
+      "description": "Keep intensities within this range (0\u20131).",
+      "fieldType": "NumberRange",
+      "name": "Intensity Filter Range",
+      "parameters": {
+        "interval": 0.1,
+        "min": 0.0,
+        "max": 1.0
+      },
+      "when": {
+        "is_present": true,
+        "property": "input_datasets"
+      },
+      "group": "Transform Parameters"
+    }
+  }
+}
