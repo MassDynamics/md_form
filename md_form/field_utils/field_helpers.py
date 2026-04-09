@@ -136,6 +136,7 @@ def condition_comparisons_field() -> Dict[str, Any]:
 @typechecked
 def control_variables_field(
     default: Optional[str] = None,
+    radioOptions: List[str] = ["categorical", "numerical"],
 ) -> Dict[str, Any]:
     """Create a control variables field."""
     result = {}
@@ -147,7 +148,7 @@ def control_variables_field(
         result["json_schema_extra"] = {}
     
     result["json_schema_extra"]["parameters"] = {
-        "radioOptions": ["categorical", "numerical"],
+        "radioOptions": radioOptions,
         "datasetsSearch": { "ref": "input_datasets" },
     }
     
