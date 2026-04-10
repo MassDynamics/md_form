@@ -82,6 +82,27 @@ def select_field(
     return result
 
 
+@field_builder(FieldType.MULTIPLE)
+@typechecked
+def multiple_select_field(
+    default: Optional[List[str]] = None,
+    options: Optional[List[str]] = None,
+) -> Dict[str, Any]:
+    """Create a multiple select field that allows selecting multiple values."""
+    result = {}
+
+    if default is not None:
+        result["json_schema_extra"] = {"default": default}
+
+    if options is not None:
+        options_dict = [{"name": opt, "value": opt} for opt in options]
+        if "json_schema_extra" not in result:
+            result["json_schema_extra"] = {}
+        result["json_schema_extra"]["parameters"] = {"options": options_dict}
+
+    return result
+
+
 @field_builder(FieldType.EXPERIMENT_DESIGN)
 def experiment_design_field() -> Dict[str, Any]:
     """Create an experiment design field."""

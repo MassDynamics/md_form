@@ -2,7 +2,7 @@ import pytest
 from typing import Dict, Any
 from pydantic.fields import FieldInfo
 from field_utils.field_helpers import (
-    boolean_field, string_field, number_field, select_field,
+    boolean_field, string_field, number_field, select_field, multiple_select_field,
     experiment_design_field, condition_column_field, condition_column_multi_select_field,
     condition_comparisons_field, control_variables_field, numberrange_field,
     intensity_input_dataset_field, entity_type_field
@@ -161,6 +161,49 @@ class TestSelectField:
         assert field.json_schema_extra["default"] == "option1"
         assert len(field.json_schema_extra["parameters"]["options"]) == 2
         assert field.discriminator == "test_discriminator"
+
+
+class TestMultipleSelectField:
+    """Test cases for the multiple_select_field function"""
+
+    def test_multiple_select_field_basic(self):
+        """Test multiple_select_field with no parameters"""
+        field = multiple_select_field()
+
+        assert isinstance(field, FieldInfo)
+        assert field.json_schema_extra["fieldType"] == FieldType.MULTIPLE
+
+    def test_multiple_select_field_with_default(self):
+        """Test multiple_select_field with default value"""
+        field = multiple_select_field(default=["a", "b"])
+
+        assert field.json_schema_extra["default"] == ["a", "b"]
+
+    def test_multiple_select_field_with_options(self):
+        """Test multiple_select_field with options"""
+        options = ["option1", "option2", "option3"]
+        field = multiple_select_field(options=options)
+
+        expected_options = [
+            {"name": "option1", "value": "option1"},
+            {"name": "option2", "value": "option2"},
+            {"name": "option3", "value": "option3"}
+        ]
+        assert field.json_schema_extra["parameters"]["options"] == expected_options
+
+    def test_multiple_select_field_with_all_parameters(self):
+        """Test multiple_select_field with all parameters"""
+        options = ["option1", "option2"]
+        field = multiple_select_field(default=["option1"], options=options)
+
+        assert field.json_schema_extra["default"] == ["option1"]
+        assert len(field.json_schema_extra["parameters"]["options"]) == 2
+
+    def test_multiple_select_field_with_empty_options(self):
+        """Test multiple_select_field with empty options list"""
+        field = multiple_select_field(options=[])
+
+        assert field.json_schema_extra["parameters"]["options"] == []
 
 
 class TestExperimentDesignField:
@@ -340,6 +383,7 @@ class TestFieldHelpersIntegration:
             string_field(),
             number_field(),
             select_field(),
+            multiple_select_field(),
             experiment_design_field(),
             condition_column_field(),
             condition_column_multi_select_field(),

@@ -16,3 +16,4 @@ class FieldType(str, Enum):
     CONTROL_VARIABLES = "PairwiseControlVariables"
     INTENSITY_INPUT_DATASET = "Datasets"
     ENTITY_TYPE = "EntityType"
+    MULTIPLE = "Multiple"
