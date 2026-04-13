@@ -1,5 +1,5 @@
 import pytest
-from md_form.field_utils.when import When
+from md_form.field_utils.when import When, evaluate_when
 
 
 class TestWhen:
@@ -362,4 +362,111 @@ class TestWhen:
         # Test as_dict still works for simple conditions
         assert when_equals.as_dict() == {"property": "property", "equals": "value"}
         assert when_not_equals.as_dict() == {"property": "property", "not_equals": "value"}
-        assert when_is_present.as_dict() == {"property": "property", "is_present": True} 
+        assert when_is_present.as_dict() == {"property": "property", "is_present": True}
+
+
+class TestEvaluateWhen:
+    """Test cases for evaluate_when and When.evaluate"""
+
+    def test_equals_true(self):
+        assert evaluate_when({"property": "x", "equals": "a"}, {"x": "a"}) is True
+
+    def test_equals_false(self):
+        assert evaluate_when({"property": "x", "equals": "a"}, {"x": "b"}) is False
+
+    def test_equals_missing_property(self):
+        assert evaluate_when({"property": "x", "equals": "a"}, {}) is False
+
+    def test_not_equals_true(self):
+        assert evaluate_when({"property": "x", "not_equals": "a"}, {"x": "b"}) is True
+
+    def test_not_equals_false(self):
+        assert evaluate_when({"property": "x", "not_equals": "a"}, {"x": "a"}) is False
+
+    def test_is_present_true(self):
+        assert evaluate_when({"property": "x", "is_present": True}, {"x": "anything"}) is True
+
+    def test_is_present_false_when_none(self):
+        assert evaluate_when({"property": "x", "is_present": True}, {"x": None}) is False
+
+    def test_is_present_false_when_missing(self):
+        assert evaluate_when({"property": "x", "is_present": True}, {}) is False
+
+    def test_and_all_true(self):
+        when_dict = {
+            "operator": "and",
+            "conditions": [
+                {"property": "a", "equals": "1"},
+                {"property": "b", "equals": "2"},
+            ]
+        }
+        assert evaluate_when(when_dict, {"a": "1", "b": "2"}) is True
+
+    def test_and_one_false(self):
+        when_dict = {
+            "operator": "and",
+            "conditions": [
+                {"property": "a", "equals": "1"},
+                {"property": "b", "equals": "2"},
+            ]
+        }
+        assert evaluate_when(when_dict, {"a": "1", "b": "WRONG"}) is False
+
+    def test_or_one_true(self):
+        when_dict = {
+            "operator": "or",
+            "conditions": [
+                {"property": "a", "equals": "1"},
+                {"property": "b", "equals": "2"},
+            ]
+        }
+        assert evaluate_when(when_dict, {"a": "1", "b": "WRONG"}) is True
+
+    def test_or_none_true(self):
+        when_dict = {
+            "operator": "or",
+            "conditions": [
+                {"property": "a", "equals": "1"},
+                {"property": "b", "equals": "2"},
+            ]
+        }
+        assert evaluate_when(when_dict, {"a": "WRONG", "b": "WRONG"}) is False
+
+    def test_nested_and_or(self):
+        when_dict = {
+            "operator": "and",
+            "conditions": [
+                {"property": "x", "is_present": True},
+                {
+                    "operator": "or",
+                    "conditions": [
+                        {"property": "y", "equals": "a"},
+                        {"property": "y", "equals": "b"},
+                    ]
+                }
+            ]
+        }
+        assert evaluate_when(when_dict, {"x": "yes", "y": "a"}) is True
+        assert evaluate_when(when_dict, {"x": "yes", "y": "b"}) is True
+        assert evaluate_when(when_dict, {"x": "yes", "y": "c"}) is False
+        assert evaluate_when(when_dict, {"y": "a"}) is False
+
+    def test_empty_and_conditions(self):
+        assert evaluate_when({"operator": "and", "conditions": []}, {}) is True
+
+    def test_empty_or_conditions(self):
+        assert evaluate_when({"operator": "or", "conditions": []}, {}) is False
+
+    def test_unknown_operator(self):
+        assert evaluate_when({"operator": "xor", "conditions": []}, {}) is False
+
+    def test_unknown_condition_type(self):
+        assert evaluate_when({"property": "x", "greater_than": 5}, {"x": 10}) is False
+
+    def test_when_evaluate_method(self):
+        when = When.any_of(
+            When.equals("norm", "batch_correction"),
+            When.equals("norm2", "batch_correction"),
+        )
+        assert when.evaluate({"norm": "batch_correction", "norm2": "skip"}) is True
+        assert when.evaluate({"norm": "skip", "norm2": "skip"}) is False

@@ -71,8 +71,10 @@ def field_builder(field_type: FieldType) -> Callable[[Callable], Callable]:
             # Build Field kwargs
             field_kwargs: Dict[str, Any] = {"json_schema_extra": json_schema_extra}
             
-            # Add default=None if is_required is not in rules so the field is optional
-            if not has_required:
+            # When 'when' is present, the requirement is conditional — always
+            # optional at the Pydantic level. The ConditionalRequiredMixin
+            # enforces the actual requirement at validation time.
+            if not has_required or when is not None:
                 field_kwargs["default"] = None
             
             # Add any non-json_schema_extra parameters (like discriminator)

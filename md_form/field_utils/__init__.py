@@ -30,8 +30,11 @@ from .rules_builder import (
     has_multiple_column_values_from_field_in_table,
 )
 
-# Import When class
-from .when import When
+# Import When class and evaluation
+from .when import When, evaluate_when
+
+# Import conditional validation mixin
+from .conditional_validator import ConditionalRequiredMixin
 
 # Import base classes for extensibility
 from .rules import Rule, EqualsToValueRule, EqualsToFieldRule, RequiredRule, ColumnValidationRule, ColumnFromFieldValidationRule
@@ -63,6 +66,8 @@ __all__ = [
     
     # Classes
     "When",
+    "evaluate_when",
+    "ConditionalRequiredMixin",
     "Rule",
     "EqualsToValueRule",
     "EqualsToFieldRule", 
