@@ -15,6 +15,7 @@ from .field_helpers import (
     control_variables_field,
     numberrange_field,
     intensity_input_dataset_field,
+    sample_metadata_value_field,
 )
 
 # Import rules and rule builders
@@ -52,7 +53,8 @@ __all__ = [
     "control_variables_field",
     "numberrange_field",
     "intensity_input_dataset_field",
-    
+    "sample_metadata_value_field",
+
     # Rules
     "is_equal_to_value",
     "is_not_equal_to_value", 

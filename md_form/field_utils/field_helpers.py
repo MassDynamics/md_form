@@ -230,3 +230,23 @@ def entity_type_field(
         result["json_schema_extra"]["default"] = default
 
     return result
+
+
+@field_builder(FieldType.SAMPLE_METADATA_VALUE)
+def sample_metadata_value_field(
+    column_ref: str = "filter_based_on_condition",
+) -> Dict[str, Any]:
+    """Pick a single value from a sample metadata column.
+
+    The frontend uses `column_ref` to know which field holds the
+    selected column name, then dynamically populates the value list
+    from the experiment design table.
+    """
+    return {
+        "json_schema_extra": {
+            "parameters": {
+                "datasetsSearch": {"ref": "input_datasets"},
+                "columnName": {"ref": column_ref},
+            }
+        }
+    }

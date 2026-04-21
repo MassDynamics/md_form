@@ -17,3 +17,4 @@ class FieldType(str, Enum):
     INTENSITY_INPUT_DATASET = "Datasets"
     ENTITY_TYPE = "EntityType"
     MULTIPLE = "Multiple"
+    SAMPLE_METADATA_VALUE = "DatasetSampleMetadataValue"
