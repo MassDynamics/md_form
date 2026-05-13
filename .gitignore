@@ -118,3 +118,5 @@ pyrightconfig.json
 # System files
 .DS_Store
 Thumbs.db
+
+.claude

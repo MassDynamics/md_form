@@ -474,6 +474,7 @@ class TestTranslatePayload:
                 "definitions": {
                     "TestType": {
                         "type": "object",
+                        "md-field-order": 0,
                         "properties": {
                             "name": {"type": "string"},
                             "status": {
@@ -484,7 +485,7 @@ class TestTranslatePayload:
                                 "type": "integer",
                                 "minimum": 0,
                                 "maximum": 100
-                            }
+                            },
                         }
                     }
                 },
@@ -511,7 +512,7 @@ class TestTranslatePayload:
             assert "description" in result["test_field"]
             
             # Check that only allowed keys remain in second layer
-            allowed_keys = ["type", "parameters", "name", "rules", "description", "default", "when"]
+            allowed_keys = ["type", "parameters", "name", "rules", "description", "default", "when", "md-field-order"]
             for key, value in result.items():
                 if isinstance(value, dict):
                     for field_key in value.keys():

@@ -1,5 +1,6 @@
 import copy
 from functools import partial
+from itertools import count
 
 
 def translate_payload(payload: dict) -> dict:
@@ -254,7 +255,7 @@ _key_mapping = {
     "minimum": "min",
 }
 
-_allowed_keys = ["fieldType", "parameters", "name", "rules", "description", "default", "when", "group"]
+_allowed_keys = ["fieldType", "parameters", "name", "rules", "description", "default", "when", "group", "md-field-order"]
 
 _pipeline = [
     _convert_enums_to_options,
