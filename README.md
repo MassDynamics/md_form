@@ -45,6 +45,39 @@ control_vars = control_variables_field(
 ```
 
 
+#### Dynamic options
+
+A `select_field`'s `options` can resolve at runtime from another field's value. Pass a `{ref, cases}` object as `options` via `parameters`. The shape is opaque to `md_form` — it's interpreted by the workflow JS form engine.
+
+```python
+species = select_field(
+    name="Species",
+    options=["Human", "Mouse"],
+)
+
+knowledge_bases = select_field(
+    name="Knowledge Bases",
+    parameters={
+        "options": {
+            "ref": "species",
+            "cases": {
+                "Human": [
+                    {"name": "Reactome (Human)", "value": "reactome_human"},
+                    {"name": "KEGG (Human)", "value": "kegg_human"},
+                ],
+                "Mouse": [
+                    {"name": "Reactome (Mouse)", "value": "reactome_mouse"},
+                    {"name": "KEGG (Mouse)", "value": "kegg_mouse"},
+                ],
+            },
+        },
+    },
+)
+```
+
+- When the referenced field's value matches a case, that array is used as the options.
+- When the referenced field is empty or its value doesn't match any case, resolved options are `undefined` and the dependent field renders with no options.
+- When the user changes the referenced field, the dependent field's value resets and re-renders.
 
 #### Common helpers
 
