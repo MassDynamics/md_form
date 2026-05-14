@@ -248,6 +248,22 @@ def _cleanup_second_layer_keys(schema: dict, allowed_keys: list) -> dict:
             cleaned_schema[key] = value
     return cleaned_schema
 
+def _sort_by_md_field_order(schema: dict) -> dict:
+    """
+    Sorts the top-level entries by their `md-field-order` value.
+    Entries without `md-field-order` go last, preserving their relative order.
+    """
+    if not isinstance(schema, dict):
+        return schema
+
+    def sort_key(item):
+        _, value = item
+        if isinstance(value, dict) and "md-field-order" in value:
+            return (0, value["md-field-order"])
+        return (1, 0)
+
+    return dict(sorted(schema.items(), key=sort_key))
+
 _key_mapping = {
     "maxItems": "max",
     "minItems": "min",
@@ -269,6 +285,7 @@ _pipeline = [
     partial(_remove_key_from_outer_layer, key_to_remove="output_dataset_type"),
     _cleanup_outer_non_objects,
     partial(_cleanup_second_layer_keys, allowed_keys=_allowed_keys),
+    _sort_by_md_field_order,
 ]
 
 # # Example usage:

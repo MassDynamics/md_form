@@ -1,5 +1,7 @@
 import pytest
 import copy
+from prefect import flow
+from md_form.field_utils import string_field, number_field, MdDatasetBaseModel
 from translate_payload import (
     translate_payload,
     _resolve_refs,
@@ -467,56 +469,130 @@ class TestTranslatePayload:
             assert "description" not in result["object1"]
             assert result["string1"] == "test"
 
+    class TestSortByMdFieldOrder:
+        """Tests for the not-yet-implemented `_sort_by_md_field_order` pipeline step.
+
+        Each test imports the function locally so file collection still works while
+        the implementation is pending.
+        """
+
+        def test_sort_ascending_by_md_field_order(self):
+            from translate_payload import _sort_by_md_field_order
+
+            schema = {
+                "b": {"fieldType": "string", "md-field-order": 2},
+                "a": {"fieldType": "string", "md-field-order": 1},
+                "c": {"fieldType": "string", "md-field-order": 3},
+            }
+
+            result = _sort_by_md_field_order(schema)
+
+            assert list(result.keys()) == ["a", "b", "c"]
+
+        def test_fields_without_md_field_order_go_last(self):
+            from translate_payload import _sort_by_md_field_order
+
+            schema = {
+                "no_order_first": {"fieldType": "string"},
+                "ordered_second": {"fieldType": "string", "md-field-order": 2},
+                "no_order_second": {"fieldType": "string"},
+                "ordered_first": {"fieldType": "string", "md-field-order": 1},
+            }
+
+            result = _sort_by_md_field_order(schema)
+
+            assert list(result.keys()) == [
+                "ordered_first",
+                "ordered_second",
+                "no_order_first",
+                "no_order_second",
+            ]
+
+        def test_only_sorts_top_level(self):
+            from translate_payload import _sort_by_md_field_order
+
+            schema = {
+                "b": {
+                    "md-field-order": 2,
+                    "parameters": {
+                        "z": {"md-field-order": 99},
+                        "a": {"md-field-order": 1},
+                    },
+                },
+                "a": {"md-field-order": 1},
+            }
+
+            result = _sort_by_md_field_order(schema)
+
+            assert list(result.keys()) == ["a", "b"]
+            assert list(result["b"]["parameters"].keys()) == ["z", "a"]
+
+        def test_empty_schema(self):
+            from translate_payload import _sort_by_md_field_order
+
+            assert _sort_by_md_field_order({}) == {}
+
+        def test_non_dict_input_passes_through(self):
+            from translate_payload import _sort_by_md_field_order
+
+            assert _sort_by_md_field_order("not a dict") == "not a dict"
+
+        def test_does_not_mutate_input(self):
+            from translate_payload import _sort_by_md_field_order
+
+            schema = {
+                "b": {"md-field-order": 2},
+                "a": {"md-field-order": 1},
+            }
+            _sort_by_md_field_order(schema)
+
+            assert list(schema.keys()) == ["b", "a"]
+
     class TestTranslatePayloadIntegration:
         def test_translate_payload_complete_pipeline(self):
-            # Test a complete schema transformation
-            input_schema = {
-                "definitions": {
-                    "TestType": {
-                        "type": "object",
-                        "md-field-order": 0,
-                        "properties": {
-                            "name": {"type": "string"},
-                            "status": {
-                                "type": "string",
-                                "enum": ["active", "inactive"]
-                            },
-                            "count": {
-                                "type": "integer",
-                                "minimum": 0,
-                                "maximum": 100
-                            },
-                        }
-                    }
-                },
-                "properties": {
-                    "test_field": {
-                        "$ref": "#/definitions/TestType",
-                        "description": "Test field"
-                    }
-                },
-                "output_dataset_type": "should_be_removed"
-            }
-            
+
+            class TestType(MdDatasetBaseModel):
+                name: str = string_field(description="Test field")
+                status: str = string_field()
+                count: int = number_field()
+
+            @flow
+            def some_thing(params: TestType):
+                pass
+            from prefect.utilities.callables import parameter_schema
+            input_schema = parameter_schema(some_thing).model_dump_for_openapi()
+
+            props = input_schema['definitions']['TestType']['properties']
+            input_schema['definitions']['TestType']['properties'] = dict(reversed(props.items()))
+
             result = translate_payload(input_schema)
-            
+
             # Check that refs are resolved and properties are flattened
             assert "definitions" not in result
-            assert "test_field" in result
-            
+            assert "name" in result
+            assert "status" in result
+            assert "count" in result
+
             # Check that output_dataset_type is removed
             assert "output_dataset_type" not in result
             
             # The final cleanup step removes most fields, so we just check
             # that the basic structure is preserved and only allowed keys remain
-            assert "description" in result["test_field"]
+            assert "description" in result["name"]
             
             # Check that only allowed keys remain in second layer
-            allowed_keys = ["type", "parameters", "name", "rules", "description", "default", "when", "md-field-order"]
+            allowed_keys = ["type", "parameters", "name", "rules", "description", "default", "when", "md-field-order", "fieldType"]
             for key, value in result.items():
                 if isinstance(value, dict):
                     for field_key in value.keys():
                         assert field_key in allowed_keys
+
+            #check order
+            assert result["name"]["md-field-order"] == 0
+            assert result["status"]["md-field-order"] == 1
+            assert result["count"]["md-field-order"] == 2
+
+            assert list(result.keys()) == ["name", "status", "count"]
 
         def test_translate_payload_with_one_of(self, one_of_schema):
             result = translate_payload(one_of_schema)

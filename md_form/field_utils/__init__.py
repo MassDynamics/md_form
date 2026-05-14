@@ -40,6 +40,7 @@ from .conditional_validator import ConditionalRequiredMixin
 # Import base classes for extensibility
 from .rules import Rule, EqualsToValueRule, EqualsToFieldRule, RequiredRule, ColumnValidationRule, ColumnFromFieldValidationRule
 
+from .md_dataset_base_model import MdDatasetBaseModel
 __all__ = [
     # Field helpers
     "boolean_field",
@@ -76,4 +77,5 @@ __all__ = [
     "RequiredRule",
     "ColumnValidationRule",
     "ColumnFromFieldValidationRule",
+    "MdDatasetBaseModel"
 ] 
