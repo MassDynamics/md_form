@@ -628,6 +628,134 @@ class TestTranslatePayload:
                 "Human"
             ] == [{"name": "Reactome", "value": "reactome_human"}]
 
+    class TestResolveMdFieldOrderClashes:
+        """Tests for the not-yet-implemented `_resolve_md_field_order_clashes` step.
+
+        Behaviour: at each parent dict, look at its dict-valued children in
+        iteration order. Track seen `md-field-order` values. When a child's
+        `md-field-order` collides with a previously-seen sibling, bump it to
+        `max(seen) + 1`. Distinct values are left alone.
+        """
+
+        def test_no_clashes_values_are_unchanged(self):
+            from translate_payload import _resolve_md_field_order_clashes
+
+            schema = {
+                "a": {"md-field-order": 0},
+                "b": {"md-field-order": 1},
+                "c": {"md-field-order": 2},
+            }
+
+            result = _resolve_md_field_order_clashes(schema)
+
+            assert result["a"]["md-field-order"] == 0
+            assert result["b"]["md-field-order"] == 1
+            assert result["c"]["md-field-order"] == 2
+
+        def test_simple_clash_bumps_second_sibling(self):
+            from translate_payload import _resolve_md_field_order_clashes
+
+            schema = {
+                "a": {"md-field-order": 0},
+                "b": {"md-field-order": 0},
+            }
+
+            result = _resolve_md_field_order_clashes(schema)
+
+            assert result["a"]["md-field-order"] == 0
+            assert result["b"]["md-field-order"] == 1
+
+        def test_cascading_clashes(self):
+            # Mirrors the integration scenario: input_datasets, name, status, count
+            # all with md-field-order 0, 0, 1, 2 after promotion.
+            from translate_payload import _resolve_md_field_order_clashes
+
+            schema = {
+                "input_datasets": {"md-field-order": 0},
+                "name": {"md-field-order": 0},
+                "status": {"md-field-order": 1},
+                "count": {"md-field-order": 2},
+            }
+
+            result = _resolve_md_field_order_clashes(schema)
+
+            assert result["input_datasets"]["md-field-order"] == 0
+            assert result["name"]["md-field-order"] == 1
+            assert result["status"]["md-field-order"] == 2
+            assert result["count"]["md-field-order"] == 3
+
+        def test_distinct_values_are_preserved_only_duplicates_bump(self):
+            from translate_payload import _resolve_md_field_order_clashes
+
+            schema = {
+                "a": {"md-field-order": 5},
+                "b": {"md-field-order": 3},
+                "c": {"md-field-order": 5},
+            }
+
+            result = _resolve_md_field_order_clashes(schema)
+
+            assert result["a"]["md-field-order"] == 5
+            assert result["b"]["md-field-order"] == 3
+            assert result["c"]["md-field-order"] == 6
+
+        def test_siblings_without_md_field_order_are_ignored(self):
+            from translate_payload import _resolve_md_field_order_clashes
+
+            schema = {
+                "a": {"md-field-order": 0},
+                "no_order": {"fieldType": "string"},
+                "b": {"md-field-order": 0},
+            }
+
+            result = _resolve_md_field_order_clashes(schema)
+
+            assert result["a"]["md-field-order"] == 0
+            assert "md-field-order" not in result["no_order"]
+            assert result["b"]["md-field-order"] == 1
+
+        def test_nested_clashes_resolved_independently_per_parent(self):
+            from translate_payload import _resolve_md_field_order_clashes
+
+            schema = {
+                "outer1": {
+                    "parameters": {
+                        "x": {"md-field-order": 0},
+                        "y": {"md-field-order": 0},
+                    },
+                },
+                "outer2": {
+                    "parameters": {
+                        "p": {"md-field-order": 0},
+                        "q": {"md-field-order": 0},
+                    },
+                },
+            }
+
+            result = _resolve_md_field_order_clashes(schema)
+
+            assert result["outer1"]["parameters"]["x"]["md-field-order"] == 0
+            assert result["outer1"]["parameters"]["y"]["md-field-order"] == 1
+            assert result["outer2"]["parameters"]["p"]["md-field-order"] == 0
+            assert result["outer2"]["parameters"]["q"]["md-field-order"] == 1
+
+        def test_non_dict_input_passes_through(self):
+            from translate_payload import _resolve_md_field_order_clashes
+
+            assert _resolve_md_field_order_clashes("not a dict") == "not a dict"
+
+        def test_does_not_mutate_input(self):
+            from translate_payload import _resolve_md_field_order_clashes
+
+            schema = {
+                "a": {"md-field-order": 0},
+                "b": {"md-field-order": 0},
+            }
+
+            _resolve_md_field_order_clashes(schema)
+
+            assert schema["b"]["md-field-order"] == 0
+
     class TestSortByMdFieldOrder:
         """Tests for the not-yet-implemented `_sort_by_md_field_order` pipeline step.
 
@@ -707,6 +835,95 @@ class TestTranslatePayload:
 
             assert list(schema.keys()) == ["b", "a"]
 
+    class TestFillMdFieldOrderFromPosition:
+        """Tests for the not-yet-implemented `_fill_md_field_order_from_position` step.
+
+        Behaviour: walk the schema and for any dict node that has `position` but
+        no `md-field-order`, copy `position` into `md-field-order`. Existing
+        `md-field-order` values are left alone. Nodes with neither key are
+        left alone.
+        """
+
+        def test_position_is_copied_when_md_field_order_missing(self):
+            from translate_payload import _fill_md_field_order_from_position
+
+            schema = {
+                "properties": {
+                    "a": {"position": 0, "type": "string"},
+                    "b": {"position": 1, "type": "string"},
+                }
+            }
+
+            result = _fill_md_field_order_from_position(schema)
+
+            assert result["properties"]["a"]["md-field-order"] == 0
+            assert result["properties"]["b"]["md-field-order"] == 1
+
+        def test_existing_md_field_order_is_not_overwritten(self):
+            from translate_payload import _fill_md_field_order_from_position
+
+            schema = {
+                "properties": {
+                    "a": {"position": 99, "md-field-order": 7},
+                }
+            }
+
+            result = _fill_md_field_order_from_position(schema)
+
+            assert result["properties"]["a"]["md-field-order"] == 7
+
+        def test_node_with_neither_key_is_left_alone(self):
+            from translate_payload import _fill_md_field_order_from_position
+
+            schema = {
+                "properties": {
+                    "a": {"type": "string"},
+                }
+            }
+
+            result = _fill_md_field_order_from_position(schema)
+
+            assert "md-field-order" not in result["properties"]["a"]
+
+        def test_walks_nested_dicts(self):
+            from translate_payload import _fill_md_field_order_from_position
+
+            schema = {
+                "definitions": {
+                    "Inner": {
+                        "properties": {
+                            "x": {"position": 0},
+                        }
+                    }
+                },
+                "properties": {
+                    "outer": {"position": 0},
+                },
+            }
+
+            result = _fill_md_field_order_from_position(schema)
+
+            assert result["properties"]["outer"]["md-field-order"] == 0
+            assert result["definitions"]["Inner"]["properties"]["x"]["md-field-order"] == 0
+
+        def test_non_dict_input_passes_through(self):
+            from translate_payload import _fill_md_field_order_from_position
+
+            assert _fill_md_field_order_from_position("not a dict") == "not a dict"
+
+        def test_does_not_mutate_input(self):
+            from translate_payload import _fill_md_field_order_from_position
+
+            schema = {
+                "properties": {
+                    "a": {"position": 0},
+                }
+            }
+
+            _fill_md_field_order_from_position(schema)
+
+            assert "md-field-order" not in schema["properties"]["a"]
+
     class TestTranslatePayloadIntegration:
         def test_translate_payload_complete_pipeline(self):
 
@@ -716,7 +933,7 @@ class TestTranslatePayload:
                 count: int = number_field()
 
             @flow
-            def some_thing(params: TestType):
+            def some_thing(input_datasets:TestType, params: TestType):
                 pass
             from prefect.utilities.callables import parameter_schema
             input_schema = parameter_schema(some_thing).model_dump_for_openapi()
@@ -728,6 +945,7 @@ class TestTranslatePayload:
 
             # Check that refs are resolved and properties are flattened
             assert "definitions" not in result
+            assert "input_datasets" in result
             assert "name" in result
             assert "status" in result
             assert "count" in result
@@ -747,11 +965,12 @@ class TestTranslatePayload:
                         assert field_key in allowed_keys
 
             #check order
-            assert result["name"]["md-field-order"] == 0
-            assert result["status"]["md-field-order"] == 1
-            assert result["count"]["md-field-order"] == 2
+            assert result["input_datasets"]["md-field-order"] == 0
+            assert result["name"]["md-field-order"] == 1
+            assert result["status"]["md-field-order"] == 2
+            assert result["count"]["md-field-order"] == 3
 
-            assert list(result.keys()) == ["name", "status", "count"]
+            assert list(result.keys()) == ["input_datasets", "name", "status", "count"]
 
         def test_translate_payload_with_one_of(self, one_of_schema):
             result = translate_payload(one_of_schema)

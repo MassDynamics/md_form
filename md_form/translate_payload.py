@@ -289,6 +289,62 @@ def _cleanup_second_layer_keys(schema: dict, allowed_keys: list) -> dict:
             cleaned_schema[key] = value
     return cleaned_schema
 
+def _fill_md_field_order_from_position(schema: dict) -> dict:
+    """
+    For each dict node, if `position` is present and `md-field-order` is not,
+    copy `position` into `md-field-order`. Leaves existing `md-field-order`
+    values untouched.
+    """
+    if not isinstance(schema, dict):
+        return schema
+
+    def walk(node):
+        if isinstance(node, dict):
+            if "position" in node and "md-field-order" not in node:
+                node["md-field-order"] = node["position"]
+            for value in node.values():
+                walk(value)
+        elif isinstance(node, list):
+            for item in node:
+                walk(item)
+
+    new_schema = copy.deepcopy(schema)
+    walk(new_schema)
+    return new_schema
+
+def _resolve_md_field_order_clashes(schema: dict) -> dict:
+    """
+    At each dict node, scan its dict-valued children in iteration order.
+    When a child's `md-field-order` collides with a previously-seen sibling,
+    bump it to `max(seen) + 1`. Distinct values are left alone.
+    """
+    if not isinstance(schema, dict):
+        return schema
+
+    def walk(node):
+        if isinstance(node, dict):
+            children_with_order = [
+                v for v in node.values()
+                if isinstance(v, dict) and "md-field-order" in v
+            ]
+            children_with_order.sort(key=lambda v: v["md-field-order"])
+            seen = set()
+            for child in children_with_order:
+                order = child["md-field-order"]
+                if order in seen:
+                    order = max(seen) + 1
+                    child["md-field-order"] = order
+                seen.add(order)
+            for value in node.values():
+                walk(value)
+        elif isinstance(node, list):
+            for item in node:
+                walk(item)
+
+    new_schema = copy.deepcopy(schema)
+    walk(new_schema)
+    return new_schema
+
 def _sort_by_md_field_order(schema: dict) -> dict:
     """
     Sorts the top-level entries by their `md-field-order` value.
@@ -315,6 +371,7 @@ _key_mapping = {
 _allowed_keys = ["fieldType", "parameters", "name", "rules", "description", "default", "when", "group", "md-field-order"]
 
 _pipeline = [
+    _fill_md_field_order_from_position,
     _convert_enums_to_options,
     _resolve_one_of,
     _resolve_refs,
@@ -327,6 +384,7 @@ _pipeline = [
     partial(_remove_key_from_outer_layer, key_to_remove="output_dataset_type"),
     _cleanup_outer_non_objects,
     partial(_cleanup_second_layer_keys, allowed_keys=_allowed_keys),
+    _resolve_md_field_order_clashes,
     _sort_by_md_field_order,
 ]
 
