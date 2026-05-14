@@ -294,6 +294,11 @@ def _fill_md_field_order_from_position(schema: dict) -> dict:
     For each dict node, if `position` is present and `md-field-order` is not,
     copy `position` into `md-field-order`. Leaves existing `md-field-order`
     values untouched.
+
+    Also reorders dict-valued siblings so that those with `position` appear in
+    ascending position order; siblings without `position` keep their relative
+    order and come after the positioned ones. This ensures the dict iteration
+    order downstream reflects positional intent.
     """
     if not isinstance(schema, dict):
         return schema
@@ -302,6 +307,17 @@ def _fill_md_field_order_from_position(schema: dict) -> dict:
         if isinstance(node, dict):
             if "position" in node and "md-field-order" not in node:
                 node["md-field-order"] = node["position"]
+
+            def sort_key(item):
+                _, value = item
+                if isinstance(value, dict) and "position" in value:
+                    return (0, value["position"])
+                return (1, 0)
+
+            reordered = dict(sorted(node.items(), key=sort_key))
+            node.clear()
+            node.update(reordered)
+
             for value in node.values():
                 walk(value)
         elif isinstance(node, list):

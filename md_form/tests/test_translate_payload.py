@@ -836,12 +836,16 @@ class TestTranslatePayload:
             assert list(schema.keys()) == ["b", "a"]
 
     class TestFillMdFieldOrderFromPosition:
-        """Tests for the not-yet-implemented `_fill_md_field_order_from_position` step.
+        """Tests for `_fill_md_field_order_from_position`.
 
         Behaviour: walk the schema and for any dict node that has `position` but
         no `md-field-order`, copy `position` into `md-field-order`. Existing
         `md-field-order` values are left alone. Nodes with neither key are
         left alone.
+
+        Also reorders dict-valued siblings so that those with `position` appear
+        in ascending position order; siblings without `position` keep their
+        relative order and come after the positioned ones.
         """
 
         def test_position_is_copied_when_md_field_order_missing(self):
@@ -924,6 +928,84 @@ class TestTranslatePayload:
 
             assert "md-field-order" not in schema["properties"]["a"]
 
+        def test_reorders_siblings_by_position(self):
+            # Mirrors prefect's real schema: dict order disagrees with `position`.
+            from translate_payload import _fill_md_field_order_from_position
+
+            schema = {
+                "properties": {
+                    "params": {"position": 1},
+                    "input_datasets": {"position": 0},
+                    "output_dataset_type": {"position": 2},
+                },
+            }
+
+            result = _fill_md_field_order_from_position(schema)
+
+            assert list(result["properties"].keys()) == [
+                "input_datasets",
+                "params",
+                "output_dataset_type",
+            ]
+
+        def test_siblings_without_position_go_after_positioned(self):
+            from translate_payload import _fill_md_field_order_from_position
+
+            schema = {
+                "properties": {
+                    "no_position_first": {"type": "string"},
+                    "positioned_second": {"position": 1},
+                    "no_position_second": {"type": "string"},
+                    "positioned_first": {"position": 0},
+                },
+            }
+
+            result = _fill_md_field_order_from_position(schema)
+
+            assert list(result["properties"].keys()) == [
+                "positioned_first",
+                "positioned_second",
+                "no_position_first",
+                "no_position_second",
+            ]
+
+        def test_dict_with_no_positioned_children_keeps_order(self):
+            from translate_payload import _fill_md_field_order_from_position
+
+            schema = {
+                "properties": {
+                    "b": {"type": "string"},
+                    "a": {"type": "integer"},
+                },
+            }
+
+            result = _fill_md_field_order_from_position(schema)
+
+            assert list(result["properties"].keys()) == ["b", "a"]
+
+        def test_reorders_at_nested_levels_too(self):
+            from translate_payload import _fill_md_field_order_from_position
+
+            schema = {
+                "definitions": {
+                    "Inner": {
+                        "properties": {
+                            "y": {"position": 1},
+                            "x": {"position": 0},
+                        },
+                    },
+                },
+                "properties": {
+                    "z": {"position": 1},
+                    "a": {"position": 0},
+                },
+            }
+
+            result = _fill_md_field_order_from_position(schema)
+
+            assert list(result["properties"].keys()) == ["a", "z"]
+            assert list(result["definitions"]["Inner"]["properties"].keys()) == ["x", "y"]
+
     class TestTranslatePayloadIntegration:
         def test_translate_payload_complete_pipeline(self):
 
@@ -933,13 +1015,23 @@ class TestTranslatePayload:
                 count: int = number_field()
 
             @flow
-            def some_thing(input_datasets:TestType, params: TestType):
+            def some_thing(input_datasets:TestType, params: TestType, output_dataset_type: str):
                 pass
             from prefect.utilities.callables import parameter_schema
             input_schema = parameter_schema(some_thing).model_dump_for_openapi()
 
             props = input_schema['definitions']['TestType']['properties']
             input_schema['definitions']['TestType']['properties'] = dict(reversed(props.items()))
+
+            # Reorder top-level properties so dict order disagrees with `position`
+            # (mirrors a real prefect schema where `params` appears before
+            # `input_datasets` despite having a higher `position`).
+            top_props = input_schema['properties']
+            input_schema['properties'] = {
+                'params': top_props['params'],
+                'input_datasets': top_props['input_datasets'],
+                'output_dataset_type': top_props['output_dataset_type'],
+            }
 
             result = translate_payload(input_schema)
 
