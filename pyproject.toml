@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "md_form"
-version = "0.1.2"
+version = "0.2.2"
 description = "A package for MDForm field helpers and payload translation utilities"
 authors = [
     {name = "Yan-sin Huang", email = "yansin@massdynamics.com"}
