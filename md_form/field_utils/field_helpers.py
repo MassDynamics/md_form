@@ -57,28 +57,62 @@ def number_field(
     return result
 
 
+def _normalize_options_arg(options: Union[List[str], Dict[str, Any]]) -> Any:
+    """Normalize a select-field `options` argument.
+
+    Flat string list -> list of {name, value} dicts.
+    Dynamic-options dict ({ref, cases}) -> same dict with each cases[key]
+    (must be List[str]) wrapped into {name, value} dicts.
+
+    Raises ValueError if the dict is structurally invalid (missing `cases`,
+    non-list `cases` value, list element that isn't a string).
+    """
+    if isinstance(options, list):
+        return [{"name": opt, "value": opt} for opt in options]
+
+    if "cases" not in options or not isinstance(options["cases"], dict):
+        raise ValueError(
+            "Dynamic options must include a 'cases' dict"
+        )
+
+    normalized_cases: Dict[str, Any] = {}
+    for case_key, case_value in options["cases"].items():
+        if not isinstance(case_value, list) or not all(
+            isinstance(item, str) for item in case_value
+        ):
+            raise ValueError(
+                f"cases[{case_key!r}] must be a list of strings; "
+                "pre-shaped or mixed lists are not accepted at the helper level"
+            )
+        normalized_cases[case_key] = [
+            {"name": item, "value": item} for item in case_value
+        ]
+
+    return {**options, "cases": normalized_cases}
+
+
 @field_builder(FieldType.STRING)
 @typechecked
 def select_field(
     default: Optional[str] = None,
-    options: Optional[List[str]] = None,
+    options: Optional[Union[List[str], Dict[str, Any]]] = None,
     discriminator: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Create a select field with options."""
     result = {}
-    
+
     if default is not None:
         result["json_schema_extra"] = {"default": default}
-    
+
     if discriminator is not None:
         result["discriminator"] = discriminator
-    
+
     if options is not None:
-        options_dict = [{"name": opt, "value": opt} for opt in options]
+        normalized_options = _normalize_options_arg(options)
         if "json_schema_extra" not in result:
             result["json_schema_extra"] = {}
-        result["json_schema_extra"]["parameters"] = {"options": options_dict}
-    
+        result["json_schema_extra"]["parameters"] = {"options": normalized_options}
+
     return result
 
 
@@ -86,7 +120,7 @@ def select_field(
 @typechecked
 def multiple_select_field(
     default: Optional[List[str]] = None,
-    options: Optional[List[str]] = None,
+    options: Optional[Union[List[str], Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
     """Create a multiple select field that allows selecting multiple values."""
     result = {}
@@ -95,10 +129,10 @@ def multiple_select_field(
         result["json_schema_extra"] = {"default": default}
 
     if options is not None:
-        options_dict = [{"name": opt, "value": opt} for opt in options]
+        normalized_options = _normalize_options_arg(options)
         if "json_schema_extra" not in result:
             result["json_schema_extra"] = {}
-        result["json_schema_extra"]["parameters"] = {"options": options_dict}
+        result["json_schema_extra"]["parameters"] = {"options": normalized_options}
 
     return result
 

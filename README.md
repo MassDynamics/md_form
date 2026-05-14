@@ -47,7 +47,7 @@ control_vars = control_variables_field(
 
 #### Dynamic options
 
-A `select_field`'s `options` can resolve at runtime from another field's value. Pass a `{ref, cases}` object as `options` via `parameters`. The shape is opaque to `md_form` — it's interpreted by the workflow JS form engine.
+A `select_field`'s (or `multiple_select_field`'s) `options` can resolve at runtime from another field's value. Pass a `{ref, cases}` object — either directly as `options` or via `parameters` — and `cases[key]` may be a flat list of strings or a pre-shaped list of `{name, value}` dicts. Flat string lists are normalized to `[{"name": s, "value": s}, ...]` automatically (mirroring the flat-list behaviour of `options=["a", "b"]`).
 
 ```python
 species = select_field(
@@ -55,6 +55,19 @@ species = select_field(
     options=["Human", "Mouse"],
 )
 
+# Flat-string cases (recommended when name == value)
+knowledge_bases = select_field(
+    name="Knowledge Bases",
+    options={
+        "ref": "species",
+        "cases": {
+            "Human": ["reactome_human", "kegg_human"],
+            "Mouse": ["reactome_mouse", "kegg_mouse"],
+        },
+    },
+)
+
+# Pre-shaped cases (when display name differs from value)
 knowledge_bases = select_field(
     name="Knowledge Bases",
     parameters={
@@ -78,6 +91,7 @@ knowledge_bases = select_field(
 - When the referenced field's value matches a case, that array is used as the options.
 - When the referenced field is empty or its value doesn't match any case, resolved options are `undefined` and the dependent field renders with no options.
 - When the user changes the referenced field, the dependent field's value resets and re-renders.
+- At the helper level (`options={...}`), each `cases[key]` must be a list of strings — mixed or pre-shaped lists raise `ValueError`. When passing pre-shaped lists, use `parameters={"options": {...}}`; the `translate_payload` pipeline passes already-normalized `cases` through untouched.
 
 #### Common helpers
 

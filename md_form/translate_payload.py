@@ -120,6 +120,47 @@ def _move_to_parameters(schema: dict, keys_to_move: list) -> dict:
         return node
     return _move(schema)
 
+def _normalize_options_cases(schema: dict) -> dict:
+    """Wrap flat-string `cases` lists into [{name, value}] entries.
+
+    Mirrors `_convert_enums_to_options`. Operates on any node where
+    `parameters.options.cases` exists. For each `cases[key]`, if the value
+    is a list of strings, every element is wrapped; otherwise the value is
+    left untouched so already-normalized payloads pass through.
+    """
+    def _normalize(node):
+        if isinstance(node, dict):
+            node = dict(node)
+            parameters = node.get("parameters")
+            if isinstance(parameters, dict):
+                options = parameters.get("options")
+                if isinstance(options, dict):
+                    cases = options.get("cases")
+                    if isinstance(cases, dict):
+                        new_cases = {}
+                        for case_key, case_value in cases.items():
+                            if isinstance(case_value, list) and all(
+                                isinstance(item, str) for item in case_value
+                            ):
+                                new_cases[case_key] = [
+                                    {"name": item, "value": item}
+                                    for item in case_value
+                                ]
+                            else:
+                                new_cases[case_key] = case_value
+                        new_options = {**options, "cases": new_cases}
+                        new_parameters = {**parameters, "options": new_options}
+                        node["parameters"] = new_parameters
+            return {
+                k: _normalize(v) if k != "parameters" else v
+                for k, v in node.items()
+            }
+        if isinstance(node, list):
+            return [_normalize(item) for item in node]
+        return node
+    return _normalize(schema)
+
+
 def _apply_pipeline(payload: dict, transforms: list) -> dict:
     for transform in transforms:
         payload = transform(payload)
@@ -279,6 +320,7 @@ _pipeline = [
     _resolve_refs,
     partial(_rename_keys, key_mapping=_key_mapping),
     partial(_move_to_parameters, keys_to_move=["options", "min", "max"]),
+    _normalize_options_cases,
     partial(_flatten_properties, key_to_flatten="properties"),
     partial(_flatten_properties, key_to_flatten="items", parent_overwrites=False),
     partial(_remove_and_promote, key_to_promote="params"),

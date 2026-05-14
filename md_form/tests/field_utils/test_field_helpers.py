@@ -157,10 +157,67 @@ class TestSelectField:
             options=options,
             discriminator="test_discriminator"
         )
-        
+
         assert field.json_schema_extra["default"] == "option1"
         assert len(field.json_schema_extra["parameters"]["options"]) == 2
         assert field.discriminator == "test_discriminator"
+
+    def test_select_field_with_dynamic_options_flat_strings(self):
+        """Flat string lists inside `cases` are wrapped into {name, value} dicts."""
+        field = select_field(
+            options={
+                "ref": "species",
+                "cases": {
+                    "Human": ["reactome_human", "kegg_human"],
+                    "Mouse": ["reactome_mouse"],
+                },
+            }
+        )
+
+        emitted = field.json_schema_extra["parameters"]["options"]
+        assert emitted["ref"] == "species"
+        assert emitted["cases"] == {
+            "Human": [
+                {"name": "reactome_human", "value": "reactome_human"},
+                {"name": "kegg_human", "value": "kegg_human"},
+            ],
+            "Mouse": [
+                {"name": "reactome_mouse", "value": "reactome_mouse"},
+            ],
+        }
+
+    def test_select_field_dynamic_options_non_list_case_value_raises(self):
+        with pytest.raises(ValueError):
+            select_field(
+                options={
+                    "ref": "species",
+                    "cases": {"Human": "not_a_list"},
+                }
+            )
+
+    def test_select_field_dynamic_options_non_string_element_raises(self):
+        with pytest.raises(ValueError):
+            select_field(
+                options={
+                    "ref": "species",
+                    "cases": {"Human": ["a", 1]},
+                }
+            )
+
+    def test_select_field_dynamic_options_preshaped_dict_raises(self):
+        with pytest.raises(ValueError):
+            select_field(
+                options={
+                    "ref": "species",
+                    "cases": {
+                        "Human": [{"name": "a", "value": "a"}],
+                    },
+                }
+            )
+
+    def test_select_field_dynamic_options_missing_cases_raises(self):
+        with pytest.raises(ValueError):
+            select_field(options={"ref": "species"})
 
 
 class TestMultipleSelectField:
@@ -204,6 +261,63 @@ class TestMultipleSelectField:
         field = multiple_select_field(options=[])
 
         assert field.json_schema_extra["parameters"]["options"] == []
+
+    def test_multiple_select_field_with_dynamic_options_flat_strings(self):
+        """Flat string lists inside `cases` are wrapped into {name, value} dicts."""
+        field = multiple_select_field(
+            options={
+                "ref": "species",
+                "cases": {
+                    "Human": ["reactome_human", "kegg_human"],
+                    "Mouse": ["reactome_mouse"],
+                },
+            }
+        )
+
+        emitted = field.json_schema_extra["parameters"]["options"]
+        assert emitted["ref"] == "species"
+        assert emitted["cases"] == {
+            "Human": [
+                {"name": "reactome_human", "value": "reactome_human"},
+                {"name": "kegg_human", "value": "kegg_human"},
+            ],
+            "Mouse": [
+                {"name": "reactome_mouse", "value": "reactome_mouse"},
+            ],
+        }
+
+    def test_multiple_select_field_dynamic_options_non_list_case_value_raises(self):
+        with pytest.raises(ValueError):
+            multiple_select_field(
+                options={
+                    "ref": "species",
+                    "cases": {"Human": "not_a_list"},
+                }
+            )
+
+    def test_multiple_select_field_dynamic_options_non_string_element_raises(self):
+        with pytest.raises(ValueError):
+            multiple_select_field(
+                options={
+                    "ref": "species",
+                    "cases": {"Human": ["a", 1]},
+                }
+            )
+
+    def test_multiple_select_field_dynamic_options_preshaped_dict_raises(self):
+        with pytest.raises(ValueError):
+            multiple_select_field(
+                options={
+                    "ref": "species",
+                    "cases": {
+                        "Human": [{"name": "a", "value": "a"}],
+                    },
+                }
+            )
+
+    def test_multiple_select_field_dynamic_options_missing_cases_raises(self):
+        with pytest.raises(ValueError):
+            multiple_select_field(options={"ref": "species"})
 
 
 class TestExperimentDesignField:

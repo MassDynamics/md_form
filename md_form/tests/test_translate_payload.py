@@ -13,7 +13,8 @@ from translate_payload import (
     _resolve_one_of,
     _cleanup_outer_non_objects,
     _remove_key_from_outer_layer,
-    _cleanup_second_layer_keys
+    _cleanup_second_layer_keys,
+    _normalize_options_cases,
 )
 
 
@@ -468,6 +469,164 @@ class TestTranslatePayload:
             assert "type" in result["object1"]
             assert "description" not in result["object1"]
             assert result["string1"] == "test"
+
+    class TestNormalizeOptionsCases:
+        def test_normalizes_flat_string_cases(self):
+            schema = {
+                "knowledge_bases": {
+                    "parameters": {
+                        "options": {
+                            "ref": "species",
+                            "cases": {
+                                "Human": ["reactome_human", "kegg_human"],
+                                "Mouse": ["reactome_mouse"],
+                            },
+                        }
+                    }
+                }
+            }
+
+            result = _normalize_options_cases(schema)
+
+            cases = result["knowledge_bases"]["parameters"]["options"]["cases"]
+            assert cases["Human"] == [
+                {"name": "reactome_human", "value": "reactome_human"},
+                {"name": "kegg_human", "value": "kegg_human"},
+            ]
+            assert cases["Mouse"] == [
+                {"name": "reactome_mouse", "value": "reactome_mouse"},
+            ]
+            # ref is preserved
+            assert result["knowledge_bases"]["parameters"]["options"]["ref"] == "species"
+
+        def test_already_normalized_cases_pass_through(self):
+            schema = {
+                "knowledge_bases": {
+                    "parameters": {
+                        "options": {
+                            "ref": "species",
+                            "cases": {
+                                "Human": [
+                                    {"name": "Reactome", "value": "reactome_human"},
+                                ],
+                            },
+                        }
+                    }
+                }
+            }
+
+            result = _normalize_options_cases(schema)
+
+            assert (
+                result["knowledge_bases"]["parameters"]["options"]["cases"]["Human"]
+                == [{"name": "Reactome", "value": "reactome_human"}]
+            )
+
+        def test_mixed_cases_value_passes_through(self):
+            """A list that isn't pure-string is left untouched (strict — no per-element coercion)."""
+            schema = {
+                "x": {
+                    "parameters": {
+                        "options": {
+                            "ref": "y",
+                            "cases": {
+                                "K": ["a", {"name": "b", "value": "b"}],
+                            },
+                        }
+                    }
+                }
+            }
+
+            result = _normalize_options_cases(schema)
+
+            assert result["x"]["parameters"]["options"]["cases"]["K"] == [
+                "a",
+                {"name": "b", "value": "b"},
+            ]
+
+        def test_no_cases_key_under_options_untouched(self):
+            schema = {
+                "x": {
+                    "parameters": {
+                        "options": [{"name": "a", "value": "a"}],
+                    }
+                }
+            }
+
+            result = _normalize_options_cases(schema)
+
+            assert result == schema
+
+        def test_walks_nested_nodes(self):
+            schema = {
+                "outer": {
+                    "properties": {
+                        "inner": {
+                            "parameters": {
+                                "options": {
+                                    "ref": "r",
+                                    "cases": {"K": ["a", "b"]},
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            result = _normalize_options_cases(schema)
+
+            cases = result["outer"]["properties"]["inner"]["parameters"]["options"]["cases"]
+            assert cases["K"] == [
+                {"name": "a", "value": "a"},
+                {"name": "b", "value": "b"},
+            ]
+
+        def test_translate_payload_normalizes_flat_string_cases(self):
+            payload = {
+                "properties": {
+                    "knowledge_bases": {
+                        "fieldType": "string",
+                        "options": {
+                            "ref": "species",
+                            "cases": {
+                                "Human": ["reactome_human", "kegg_human"],
+                            },
+                        },
+                    }
+                }
+            }
+
+            result = translate_payload(payload)
+
+            assert result["knowledge_bases"]["parameters"]["options"]["cases"][
+                "Human"
+            ] == [
+                {"name": "reactome_human", "value": "reactome_human"},
+                {"name": "kegg_human", "value": "kegg_human"},
+            ]
+
+        def test_translate_payload_preserves_preshaped_cases(self):
+            payload = {
+                "properties": {
+                    "knowledge_bases": {
+                        "fieldType": "string",
+                        "options": {
+                            "ref": "species",
+                            "cases": {
+                                "Human": [
+                                    {"name": "Reactome", "value": "reactome_human"},
+                                ],
+                            },
+                        },
+                    }
+                }
+            }
+
+            result = translate_payload(payload)
+
+            assert result["knowledge_bases"]["parameters"]["options"]["cases"][
+                "Human"
+            ] == [{"name": "Reactome", "value": "reactome_human"}]
 
     class TestSortByMdFieldOrder:
         """Tests for the not-yet-implemented `_sort_by_md_field_order` pipeline step.
