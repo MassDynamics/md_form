@@ -284,3 +284,22 @@ def sample_metadata_value_field(
             }
         }
     }
+
+
+@field_builder(FieldType.SAMPLE_METADATA_COLUMNS)
+def sample_metadata_columns_field(
+    datasets_ref: str = "input_datasets",
+) -> Dict[str, Any]:
+    """Pick sample metadata column names from the dataset's experiment design.
+
+    Returns an array of sample metadata column names (capped at 4 on the
+    frontend). `datasets_ref` is the name of the field that holds the
+    dataset reference the frontend uses to populate the available columns.
+    """
+    return {
+        "json_schema_extra": {
+            "parameters": {
+                "datasetsSearch": {"ref": datasets_ref},
+            }
+        }
+    }

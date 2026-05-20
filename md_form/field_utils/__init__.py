@@ -16,6 +16,7 @@ from .field_helpers import (
     numberrange_field,
     intensity_input_dataset_field,
     sample_metadata_value_field,
+    sample_metadata_columns_field,
 )
 
 # Import rules and rule builders
@@ -55,6 +56,7 @@ __all__ = [
     "numberrange_field",
     "intensity_input_dataset_field",
     "sample_metadata_value_field",
+    "sample_metadata_columns_field",
 
     # Rules
     "is_equal_to_value",

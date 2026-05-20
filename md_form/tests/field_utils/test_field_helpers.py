@@ -5,7 +5,8 @@ from field_utils.field_helpers import (
     boolean_field, string_field, number_field, select_field, multiple_select_field,
     experiment_design_field, condition_column_field, condition_column_multi_select_field,
     condition_comparisons_field, control_variables_field, numberrange_field,
-    intensity_input_dataset_field, entity_type_field, sample_metadata_value_field
+    intensity_input_dataset_field, entity_type_field, sample_metadata_value_field,
+    sample_metadata_columns_field
 )
 from field_utils.field_types import FieldType
 
@@ -504,6 +505,29 @@ class TestSampleMetadataValueField:
         assert field.json_schema_extra["parameters"]["columnName"]["ref"] == "condition_column"
 
 
+class TestSampleMetadataColumnsField:
+    """Test cases for the sample_metadata_columns_field function"""
+
+    def test_sample_metadata_columns_field_basic(self):
+        field = sample_metadata_columns_field()
+
+        assert isinstance(field, FieldInfo)
+        assert field.json_schema_extra["fieldType"] == FieldType.SAMPLE_METADATA_COLUMNS
+        assert field.json_schema_extra["parameters"]["datasetsSearch"]["ref"] == "input_datasets"
+
+    def test_sample_metadata_columns_field_custom_datasets_ref(self):
+        field = sample_metadata_columns_field(datasets_ref="other_datasets")
+
+        assert field.json_schema_extra["parameters"]["datasetsSearch"]["ref"] == "other_datasets"
+
+    def test_sample_metadata_columns_field_parameters_structure(self):
+        field = sample_metadata_columns_field()
+
+        parameters = field.json_schema_extra["parameters"]
+        assert list(parameters.keys()) == ["datasetsSearch"]
+        assert parameters["datasetsSearch"] == {"ref": "input_datasets"}
+
+
 class TestFieldHelpersIntegration:
     """Integration tests for field helpers"""
 
@@ -524,6 +548,7 @@ class TestFieldHelpersIntegration:
             intensity_input_dataset_field(),
             entity_type_field(),
             sample_metadata_value_field(),
+            sample_metadata_columns_field(),
         ]
         
         for field in field_functions:
