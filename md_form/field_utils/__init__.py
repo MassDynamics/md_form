@@ -17,6 +17,7 @@ from .field_helpers import (
     intensity_input_dataset_field,
     sample_metadata_value_field,
     sample_metadata_columns_field,
+    entity_list_entity_ids_field,
 )
 
 # Import rules and rule builders
@@ -57,6 +58,7 @@ __all__ = [
     "intensity_input_dataset_field",
     "sample_metadata_value_field",
     "sample_metadata_columns_field",
+    "entity_list_entity_ids_field",
 
     # Rules
     "is_equal_to_value",

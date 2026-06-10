@@ -19,3 +19,4 @@ class FieldType(str, Enum):
     MULTIPLE = "Multiple"
     SAMPLE_METADATA_VALUE = "DatasetSampleMetadataValue"
     SAMPLE_METADATA_COLUMNS = "DatasetSampleMetadataColumns"
+    ENTITY_LIST_ENTITY_IDS = "EntityListEntityIds"

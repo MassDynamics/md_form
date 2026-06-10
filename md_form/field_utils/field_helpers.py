@@ -286,6 +286,27 @@ def sample_metadata_value_field(
     }
 
 
+@field_builder(FieldType.ENTITY_LIST_ENTITY_IDS)
+@typechecked
+def entity_list_entity_ids_field(
+    type: Optional[Union[str, Dict[str, Any]]] = None,
+) -> Dict[str, Any]:
+    """Pick an entity list; the field's value is the array of entity_ids in that list.
+
+    `type` is the entity type (e.g. "protein", "peptide", "gene") used to
+    filter the available lists. Pass a literal string, or a `{"ref": "<field>"}`
+    dict to bind to another field (commonly the entity_type field).
+    """
+    parameters: Dict[str, Any] = {}
+    if type is not None:
+        parameters["type"] = type
+
+    result: Dict[str, Any] = {"json_schema_extra": {}}
+    if parameters:
+        result["json_schema_extra"]["parameters"] = parameters
+    return result
+
+
 @field_builder(FieldType.SAMPLE_METADATA_COLUMNS)
 def sample_metadata_columns_field(
     datasets_ref: str = "input_datasets",
