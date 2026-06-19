@@ -17,6 +17,7 @@ from .field_helpers import (
     intensity_input_dataset_field,
     sample_metadata_value_field,
     sample_metadata_columns_field,
+    sample_metadata_values_filter_field,
     entity_list_entity_ids_field,
 )
 
@@ -58,6 +59,7 @@ __all__ = [
     "intensity_input_dataset_field",
     "sample_metadata_value_field",
     "sample_metadata_columns_field",
+    "sample_metadata_values_filter_field",
     "entity_list_entity_ids_field",
 
     # Rules

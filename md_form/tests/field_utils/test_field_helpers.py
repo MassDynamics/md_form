@@ -6,7 +6,7 @@ from field_utils.field_helpers import (
     experiment_design_field, condition_column_field, condition_column_multi_select_field,
     condition_comparisons_field, control_variables_field, numberrange_field,
     intensity_input_dataset_field, entity_type_field, sample_metadata_value_field,
-    sample_metadata_columns_field
+    sample_metadata_columns_field, sample_metadata_values_filter_field
 )
 from field_utils.field_types import FieldType
 
@@ -528,6 +528,51 @@ class TestSampleMetadataColumnsField:
         assert parameters["datasetsSearch"] == {"ref": "input_datasets"}
 
 
+class TestSampleMetadataValuesFilterField:
+    """Test cases for the sample_metadata_values_filter_field function"""
+
+    def test_sample_metadata_values_filter_field_basic(self):
+        field = sample_metadata_values_filter_field()
+
+        assert isinstance(field, FieldInfo)
+        assert field.json_schema_extra["fieldType"] == FieldType.SAMPLE_METADATA_VALUES_FILTER
+        parameters = field.json_schema_extra["parameters"]
+        assert parameters["datasetsSearch"]["ref"] == "input_datasets"
+        assert parameters["columnName"]["ref"] == "filter_based_on_condition"
+
+    def test_sample_metadata_values_filter_field_custom_refs(self):
+        field = sample_metadata_values_filter_field(
+            column_ref="condition_column", datasets_ref="other_datasets"
+        )
+
+        parameters = field.json_schema_extra["parameters"]
+        assert parameters["columnName"]["ref"] == "condition_column"
+        assert parameters["datasetsSearch"]["ref"] == "other_datasets"
+
+    def test_sample_metadata_values_filter_field_with_toggles(self):
+        field = sample_metadata_values_filter_field(
+            filterable=True,
+            sortable=False,
+            advanced_filtering=True,
+            ignored_values=["__pool__"],
+        )
+
+        parameters = field.json_schema_extra["parameters"]
+        assert parameters["filterable"] is True
+        assert parameters["sortable"] is False
+        assert parameters["advancedFiltering"] is True
+        assert parameters["ignoredValues"] == ["__pool__"]
+
+    def test_sample_metadata_values_filter_field_omits_unset_params(self):
+        field = sample_metadata_values_filter_field()
+
+        parameters = field.json_schema_extra["parameters"]
+        assert "filterable" not in parameters
+        assert "sortable" not in parameters
+        assert "advancedFiltering" not in parameters
+        assert "ignoredValues" not in parameters
+
+
 class TestFieldHelpersIntegration:
     """Integration tests for field helpers"""
 
@@ -549,6 +594,7 @@ class TestFieldHelpersIntegration:
             entity_type_field(),
             sample_metadata_value_field(),
             sample_metadata_columns_field(),
+            sample_metadata_values_filter_field(),
         ]
         
         for field in field_functions:

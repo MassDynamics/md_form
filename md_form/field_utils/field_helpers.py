@@ -324,3 +324,45 @@ def sample_metadata_columns_field(
             }
         }
     }
+
+
+@field_builder(FieldType.SAMPLE_METADATA_VALUES_FILTER)
+@typechecked
+def sample_metadata_values_filter_field(
+    column_ref: str = "filter_based_on_condition",
+    datasets_ref: str = "input_datasets",
+    filterable: Optional[bool] = None,
+    sortable: Optional[bool] = None,
+    advanced_filtering: Optional[bool] = None,
+    ignored_values: Optional[List[str]] = None,
+) -> Dict[str, Any]:
+    """Pick multiple values to keep from a single sample metadata column.
+
+    The frontend populates the selectable value list from the experiment
+    design table using `column_ref` (the field holding the selected column
+    name) and `datasets_ref` (the field holding the dataset reference).
+
+    `filterable`, `sortable` and `advanced_filtering` toggle the component's
+    add/remove, reordering and advanced-filtering affordances. `ignored_values`
+    are values excluded from the selectable list. Each is omitted from the
+    payload when left unset so the frontend applies its own default.
+    """
+    parameters: Dict[str, Any] = {
+        "datasetsSearch": {"ref": datasets_ref},
+        "columnName": {"ref": column_ref},
+    }
+
+    if filterable is not None:
+        parameters["filterable"] = filterable
+    if sortable is not None:
+        parameters["sortable"] = sortable
+    if advanced_filtering is not None:
+        parameters["advancedFiltering"] = advanced_filtering
+    if ignored_values is not None:
+        parameters["ignoredValues"] = ignored_values
+
+    return {
+        "json_schema_extra": {
+            "parameters": parameters,
+        }
+    }
