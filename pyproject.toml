@@ -12,7 +12,7 @@ authors = [
 readme = "README.md"
 requires-python = ">=3.8"
 dependencies = [
-    "pydantic~=2.10.4",
+    "pydantic>=2.10.4,<3",
     "typeguard>=4.0.0",
     "pandas",
     "prefect"
