@@ -21,3 +21,4 @@ class FieldType(str, Enum):
     SAMPLE_METADATA_COLUMNS = "DatasetSampleMetadataColumns"
     SAMPLE_METADATA_VALUES_FILTER = "SampleMetadataValuesFilter"
     ENTITY_LIST_ENTITY_IDS = "EntityListEntityIds"
+    ENTITY_LISTS = "ProteinLists"

@@ -366,3 +366,45 @@ def sample_metadata_values_filter_field(
             "parameters": parameters,
         }
     }
+
+
+@field_builder(FieldType.ENTITY_LISTS)
+@typechecked
+def entity_lists_field(
+    type: Optional[Union[str, Dict[str, Any]]] = None,
+    datasets_ref: Optional[str] = None,
+    resolve_entities: Optional[bool] = None,
+    sortable: Optional[bool] = None,
+    enable_settings: Optional[bool] = None,
+) -> Dict[str, Any]:
+    """Pick one or more entity lists (the multi-list entity lists form).
+
+    The field's value is an array of the selected lists. The entity type used
+    to filter the available lists comes from either `type` (a literal such as
+    "protein"/"peptide"/"gene", or a `{"ref": "<field>"}` dict) or `datasets_ref`
+    (the name of a datasets-search field, bound via `entityTypeFromDatasetsSearch`
+    as the module instructions do).
+
+    When `resolve_entities` is true each selected list is emitted as
+    `{id, name, entityIds}` instead of just `{id}`. `sortable` toggles
+    drag-reordering of the selected lists; `enable_settings` toggles the
+    per-list settings affordance. Each parameter is omitted when unset so the
+    frontend applies its own default.
+    """
+    parameters: Dict[str, Any] = {}
+
+    if type is not None:
+        parameters["type"] = type
+    if datasets_ref is not None:
+        parameters["entityTypeFromDatasetsSearch"] = {"ref": datasets_ref}
+    if resolve_entities is not None:
+        parameters["resolveEntities"] = resolve_entities
+    if sortable is not None:
+        parameters["sortable"] = sortable
+    if enable_settings is not None:
+        parameters["enableSettings"] = enable_settings
+
+    result: Dict[str, Any] = {"json_schema_extra": {}}
+    if parameters:
+        result["json_schema_extra"]["parameters"] = parameters
+    return result

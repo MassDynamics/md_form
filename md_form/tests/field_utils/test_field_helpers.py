@@ -6,7 +6,8 @@ from field_utils.field_helpers import (
     experiment_design_field, condition_column_field, condition_column_multi_select_field,
     condition_comparisons_field, control_variables_field, numberrange_field,
     intensity_input_dataset_field, entity_type_field, sample_metadata_value_field,
-    sample_metadata_columns_field, sample_metadata_values_filter_field
+    sample_metadata_columns_field, sample_metadata_values_filter_field,
+    entity_lists_field
 )
 from field_utils.field_types import FieldType
 
@@ -573,6 +574,56 @@ class TestSampleMetadataValuesFilterField:
         assert "ignoredValues" not in parameters
 
 
+class TestEntityListsField:
+    """Test cases for the entity_lists_field function"""
+
+    def test_entity_lists_field_basic(self):
+        field = entity_lists_field()
+
+        assert isinstance(field, FieldInfo)
+        assert field.json_schema_extra["fieldType"] == FieldType.ENTITY_LISTS
+        assert "parameters" not in field.json_schema_extra
+
+    def test_entity_lists_field_with_literal_type(self):
+        field = entity_lists_field(type="protein")
+
+        parameters = field.json_schema_extra["parameters"]
+        assert parameters["type"] == "protein"
+
+    def test_entity_lists_field_with_ref_type(self):
+        field = entity_lists_field(type={"ref": "entity_type"})
+
+        parameters = field.json_schema_extra["parameters"]
+        assert parameters["type"] == {"ref": "entity_type"}
+
+    def test_entity_lists_field_with_datasets_ref(self):
+        field = entity_lists_field(datasets_ref="datasetsSearch")
+
+        parameters = field.json_schema_extra["parameters"]
+        assert parameters["entityTypeFromDatasetsSearch"] == {"ref": "datasetsSearch"}
+
+    def test_entity_lists_field_with_toggles(self):
+        field = entity_lists_field(
+            resolve_entities=True,
+            sortable=False,
+            enable_settings=True,
+        )
+
+        parameters = field.json_schema_extra["parameters"]
+        assert parameters["resolveEntities"] is True
+        assert parameters["sortable"] is False
+        assert parameters["enableSettings"] is True
+
+    def test_entity_lists_field_omits_unset_params(self):
+        field = entity_lists_field(type="protein")
+
+        parameters = field.json_schema_extra["parameters"]
+        assert "entityTypeFromDatasetsSearch" not in parameters
+        assert "resolveEntities" not in parameters
+        assert "sortable" not in parameters
+        assert "enableSettings" not in parameters
+
+
 class TestFieldHelpersIntegration:
     """Integration tests for field helpers"""
 
@@ -595,6 +646,7 @@ class TestFieldHelpersIntegration:
             sample_metadata_value_field(),
             sample_metadata_columns_field(),
             sample_metadata_values_filter_field(),
+            entity_lists_field(),
         ]
         
         for field in field_functions:

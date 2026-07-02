@@ -19,6 +19,7 @@ from .field_helpers import (
     sample_metadata_columns_field,
     sample_metadata_values_filter_field,
     entity_list_entity_ids_field,
+    entity_lists_field,
 )
 
 # Import rules and rule builders
@@ -61,6 +62,7 @@ __all__ = [
     "sample_metadata_columns_field",
     "sample_metadata_values_filter_field",
     "entity_list_entity_ids_field",
+    "entity_lists_field",
 
     # Rules
     "is_equal_to_value",
