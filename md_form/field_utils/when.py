@@ -19,12 +19,14 @@ def evaluate_when(when_dict: Dict[str, Any], data: Dict[str, Any]) -> bool:
         return value != when_dict["not_equals"]
     if "is_present" in when_dict:
         return value is not None
+    if "contains" in when_dict:
+        return isinstance(value, (list, tuple)) and when_dict["contains"] in value
 
     return False
 
 
 class When:
-    def __init__(self, property_name: str = None, condition_type: str = None, value: Any = None, 
+    def __init__(self, property_name: str = None, condition_type: str = None, value: Any = None,
                  operator: str = None, conditions: List['When'] = None):
         self.property = property_name
         self.condition_type = condition_type
@@ -43,6 +45,10 @@ class When:
     @classmethod
     def is_present(cls, property_name: str):
         return cls(property_name, "is_present", True)
+
+    @classmethod
+    def contains(cls, property_name: str, value: Any):
+        return cls(property_name, "contains", value)
 
     @classmethod
     def all_of(cls, *conditions: 'When'):
