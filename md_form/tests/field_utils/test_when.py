@@ -348,21 +348,48 @@ class TestWhen:
         assert when_equals.property == "property"
         assert when_equals.condition_type == "equals"
         assert when_equals.value == "value"
-        
+
         when_not_equals = When.not_equals("property", "value")
         assert when_not_equals.property == "property"
         assert when_not_equals.condition_type == "not_equals"
         assert when_not_equals.value == "value"
-        
+
         when_is_present = When.is_present("property")
         assert when_is_present.property == "property"
         assert when_is_present.condition_type == "is_present"
         assert when_is_present.value is True
-        
+
         # Test as_dict still works for simple conditions
         assert when_equals.as_dict() == {"property": "property", "equals": "value"}
         assert when_not_equals.as_dict() == {"property": "property", "not_equals": "value"}
         assert when_is_present.as_dict() == {"property": "property", "is_present": True}
+
+    def test_when_contains_class_method(self):
+        when = When.contains("sets", "Custom Lists")
+
+        assert when.property == "sets"
+        assert when.condition_type == "contains"
+        assert when.value == "Custom Lists"
+
+    def test_when_contains_as_dict(self):
+        result = When.contains("sets", "Custom Lists").as_dict()
+
+        assert result == {"property": "sets", "contains": "Custom Lists"}
+
+    def test_when_contains_in_all_of(self):
+        when = When.all_of(
+            When.is_present("input_datasets"),
+            When.contains("sets", "Custom Lists"),
+        )
+
+        result = when.as_dict()
+        assert result == {
+            "operator": "and",
+            "conditions": [
+                {"property": "input_datasets", "is_present": True},
+                {"property": "sets", "contains": "Custom Lists"},
+            ],
+        }
 
 
 class TestEvaluateWhen:
@@ -470,3 +497,36 @@ class TestEvaluateWhen:
         )
         assert when.evaluate({"norm": "batch_correction", "norm2": "skip"}) is True
         assert when.evaluate({"norm": "skip", "norm2": "skip"}) is False
+
+    def test_contains_true_when_value_in_list(self):
+        assert evaluate_when({"property": "sets", "contains": "Custom Lists"}, {"sets": ["Reactome", "Custom Lists"]}) is True
+
+    def test_contains_true_when_only_value(self):
+        assert evaluate_when({"property": "sets", "contains": "Custom Lists"}, {"sets": ["Custom Lists"]}) is True
+
+    def test_contains_false_when_value_absent(self):
+        assert evaluate_when({"property": "sets", "contains": "Custom Lists"}, {"sets": ["Reactome"]}) is False
+
+    def test_contains_false_when_empty_list(self):
+        assert evaluate_when({"property": "sets", "contains": "Custom Lists"}, {"sets": []}) is False
+
+    def test_contains_false_when_property_missing(self):
+        assert evaluate_when({"property": "sets", "contains": "Custom Lists"}, {}) is False
+
+    def test_contains_false_when_value_is_string(self):
+        assert evaluate_when({"property": "sets", "contains": "Custom Lists"}, {"sets": "Custom Lists"}) is False
+
+    def test_contains_false_when_value_is_none(self):
+        assert evaluate_when({"property": "sets", "contains": "Custom Lists"}, {"sets": None}) is False
+
+    def test_contains_true_with_tuple(self):
+        assert evaluate_when({"property": "sets", "contains": "x"}, {"sets": ("x", "y")}) is True
+
+    def test_contains_via_when_evaluate(self):
+        when = When.all_of(
+            When.is_present("input_datasets"),
+            When.contains("sets", "Custom Lists"),
+        )
+        assert when.evaluate({"input_datasets": "ds1", "sets": ["Reactome", "Custom Lists"]}) is True
+        assert when.evaluate({"input_datasets": "ds1", "sets": ["Reactome"]}) is False
+        assert when.evaluate({"sets": ["Custom Lists"]}) is False
