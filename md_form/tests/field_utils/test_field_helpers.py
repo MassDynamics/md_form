@@ -5,7 +5,7 @@ from field_utils.field_helpers import (
     boolean_field, string_field, number_field, select_field, multiple_select_field,
     experiment_design_field, condition_column_field, condition_column_multi_select_field,
     condition_comparisons_field, control_variables_field, numberrange_field,
-    intensity_input_dataset_field, dataset_search_select_field, entity_type_field,
+    intensity_input_dataset_field, input_dataset_field, entity_type_field,
     sample_metadata_value_field, sample_metadata_columns_field,
     sample_metadata_values_filter_field, entity_lists_field
 )
@@ -466,37 +466,37 @@ class TestIntensityInputDatasetField:
 
 
 class TestDatasetSearchSelectField:
-    """Test cases for the dataset_search_select_field function"""
+    """Test cases for the input_dataset_field function (configurable dataset type)"""
 
     def test_basic(self):
-        field = dataset_search_select_field()
+        field = input_dataset_field()
 
         assert isinstance(field, FieldInfo)
-        assert field.json_schema_extra["fieldType"] == FieldType.DATASET_SEARCH_SELECT
+        assert field.json_schema_extra["fieldType"] == FieldType.INTENSITY_INPUT_DATASET
         assert "parameters" not in field.json_schema_extra
 
     def test_with_type(self):
-        field = dataset_search_select_field(type="PAIRWISE")
+        field = input_dataset_field(type="PAIRWISE")
 
         assert field.json_schema_extra["parameters"]["type"] == "PAIRWISE"
 
     def test_with_multiple_true(self):
-        field = dataset_search_select_field(multiple=True)
+        field = input_dataset_field(multiple=True)
 
         assert field.json_schema_extra["parameters"]["multiple"] is True
 
     def test_with_multiple_false(self):
-        field = dataset_search_select_field(multiple=False)
+        field = input_dataset_field(multiple=False)
 
         assert field.json_schema_extra["parameters"]["multiple"] is False
 
     def test_with_entity_type(self):
-        field = dataset_search_select_field(entity_type="protein")
+        field = input_dataset_field(entity_type="protein")
 
         assert field.json_schema_extra["parameters"]["entityType"] == "protein"
 
     def test_with_all_params(self):
-        field = dataset_search_select_field(type="INTENSITY", multiple=True, entity_type="gene")
+        field = input_dataset_field(type="INTENSITY", multiple=True, entity_type="gene")
 
         params = field.json_schema_extra["parameters"]
         assert params["type"] == "INTENSITY"
@@ -504,20 +504,20 @@ class TestDatasetSearchSelectField:
         assert params["entityType"] == "gene"
 
     def test_omits_unset_params(self):
-        field = dataset_search_select_field(type="ANOVA")
+        field = input_dataset_field(type="ANOVA")
 
         params = field.json_schema_extra["parameters"]
         assert "multiple" not in params
         assert "entityType" not in params
 
     def test_no_params_produces_no_parameters_key(self):
-        field = dataset_search_select_field()
+        field = input_dataset_field()
 
         assert "parameters" not in field.json_schema_extra
 
     def test_accepts_any_dataset_type_string(self):
         for dataset_type in ["INTENSITY", "PAIRWISE", "ANOVA", "ENRICHMENT", "WGCNA", "MOFA"]:
-            field = dataset_search_select_field(type=dataset_type)
+            field = input_dataset_field(type=dataset_type)
             assert field.json_schema_extra["parameters"]["type"] == dataset_type
 
 
@@ -698,7 +698,7 @@ class TestFieldHelpersIntegration:
             control_variables_field(),
             numberrange_field(),
             intensity_input_dataset_field(),
-            dataset_search_select_field(),
+            input_dataset_field(),
             entity_type_field(),
             sample_metadata_value_field(),
             sample_metadata_columns_field(),

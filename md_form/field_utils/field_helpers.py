@@ -246,9 +246,9 @@ def intensity_input_dataset_field() -> Dict[str, Any]:
         }
     }
 
-@field_builder(FieldType.DATASET_SEARCH_SELECT)
+@field_builder(FieldType.INTENSITY_INPUT_DATASET)
 @typechecked
-def dataset_search_select_field(
+def input_dataset_field(
     type: Optional[str] = None,
     multiple: Optional[bool] = None,
     entity_type: Optional[str] = None,
