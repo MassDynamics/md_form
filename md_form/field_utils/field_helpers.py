@@ -396,6 +396,37 @@ def sample_metadata_values_filter_field(
     }
 
 
+@field_builder(FieldType.DATABASES)
+@typechecked
+def databases_field(
+    knowledge_bases: Optional[List[str]] = None,
+    allow_custom_databases: Optional[bool] = None,
+    entity_type: Optional[Union[str, Dict[str, Any]]] = None,
+) -> Dict[str, Any]:
+    """Create a databases field pairing a knowledge-base multi-select with optional custom analysis sets.
+
+    `knowledge_bases` is the list of preset knowledge base strings offered as
+    multi-select options.
+    `allow_custom_databases` gates the analysis-sets section; when False (default)
+    only `knowledgeBases` is emitted by the field.
+    `entity_type` is passed to each analysis set's ProteinListsForm to filter
+    available entity lists (e.g. "protein", "peptide", or a {"ref": "<field>"} dict).
+    """
+    parameters: Dict[str, Any] = {}
+
+    if knowledge_bases is not None:
+        parameters["knowledgeBases"] = knowledge_bases
+    if allow_custom_databases is not None:
+        parameters["allowCustomDatabases"] = allow_custom_databases
+    if entity_type is not None:
+        parameters["entityType"] = entity_type
+
+    result: Dict[str, Any] = {"json_schema_extra": {}}
+    if parameters:
+        result["json_schema_extra"]["parameters"] = parameters
+    return result
+
+
 @field_builder(FieldType.ENTITY_LISTS)
 @typechecked
 def entity_lists_field(
