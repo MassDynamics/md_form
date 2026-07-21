@@ -7,7 +7,7 @@ from field_utils.field_helpers import (
     condition_comparisons_field, control_variables_field, numberrange_field,
     intensity_input_dataset_field, datasets_field, entity_type_field,
     sample_metadata_value_field, sample_metadata_columns_field,
-    sample_metadata_values_filter_field, entity_lists_field
+    sample_metadata_values_filter_field, entity_lists_field, databases_field
 )
 from field_utils.field_types import FieldType
 
@@ -680,6 +680,69 @@ class TestEntityListsField:
         assert "enableSettings" not in parameters
 
 
+class TestDatabasesField:
+    """Test cases for the databases_field function"""
+
+    def test_databases_field_basic(self):
+        field = databases_field()
+
+        assert isinstance(field, FieldInfo)
+        assert field.json_schema_extra["fieldType"] == FieldType.DATABASES
+        assert "parameters" not in field.json_schema_extra
+
+    def test_databases_field_with_knowledge_bases(self):
+        field = databases_field(knowledge_bases=["Reactome", "GO – Biological Process"])
+
+        assert field.json_schema_extra["parameters"]["knowledgeBases"] == [
+            "Reactome",
+            "GO – Biological Process",
+        ]
+
+    def test_databases_field_with_allow_custom_databases_true(self):
+        field = databases_field(allow_custom_databases=True)
+
+        assert field.json_schema_extra["parameters"]["allowCustomDatabases"] is True
+
+    def test_databases_field_with_allow_custom_databases_false(self):
+        field = databases_field(allow_custom_databases=False)
+
+        assert field.json_schema_extra["parameters"]["allowCustomDatabases"] is False
+
+    def test_databases_field_with_literal_entity_type(self):
+        field = databases_field(entity_type="peptide")
+
+        assert field.json_schema_extra["parameters"]["entityType"] == "peptide"
+
+    def test_databases_field_with_ref_entity_type(self):
+        field = databases_field(entity_type={"ref": "entity_type"})
+
+        assert field.json_schema_extra["parameters"]["entityType"] == {"ref": "entity_type"}
+
+    def test_databases_field_with_all_params(self):
+        field = databases_field(
+            knowledge_bases=["Reactome", "KEGG"],
+            allow_custom_databases=True,
+            entity_type="protein",
+        )
+
+        parameters = field.json_schema_extra["parameters"]
+        assert parameters["knowledgeBases"] == ["Reactome", "KEGG"]
+        assert parameters["allowCustomDatabases"] is True
+        assert parameters["entityType"] == "protein"
+
+    def test_databases_field_omits_unset_params(self):
+        field = databases_field(knowledge_bases=["Reactome"])
+
+        parameters = field.json_schema_extra["parameters"]
+        assert "allowCustomDatabases" not in parameters
+        assert "entityType" not in parameters
+
+    def test_databases_field_empty_knowledge_bases(self):
+        field = databases_field(knowledge_bases=[])
+
+        assert field.json_schema_extra["parameters"]["knowledgeBases"] == []
+
+
 class TestFieldHelpersIntegration:
     """Integration tests for field helpers"""
 
@@ -704,6 +767,7 @@ class TestFieldHelpersIntegration:
             sample_metadata_columns_field(),
             sample_metadata_values_filter_field(),
             entity_lists_field(),
+            databases_field(),
         ]
         
         for field in field_functions:
