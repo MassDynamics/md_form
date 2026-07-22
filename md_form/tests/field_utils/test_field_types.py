@@ -19,7 +19,7 @@ class TestFieldType:
         assert FieldType.INTENSITY_INPUT_DATASET == "Datasets"
         assert FieldType.ENTITY_TYPE == "EntityType"
         assert FieldType.MULTIPLE == "Multiple"
-        assert FieldType.DATABASES == "DatabasesField"
+        assert FieldType.DATABASES == "Databases"
 
     def test_field_type_inheritance(self):
         """Test that FieldType inherits from str and Enum"""
@@ -48,7 +48,7 @@ class TestFieldType:
             "PairwiseControlVariables", "Datasets", "EntityType", "Multiple",
             "DatasetSampleMetadataValue", "DatasetSampleMetadataColumns",
             "SampleMetadataValuesFilter", "EntityListEntityIds", "ProteinLists",
-            "DatabasesField",
+            "Databases",
         ]
         
         for field_type in field_types:
