@@ -399,7 +399,7 @@ def sample_metadata_values_filter_field(
 @field_builder(FieldType.DATABASES)
 @typechecked
 def databases_field(
-    knowledge_bases: Optional[List[str]] = None,
+    knowledge_bases: Optional[Union[List[str], Dict[str, Any]]] = None,
     allow_custom_databases: Optional[bool] = None,
     entity_type: Optional[Union[str, Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
