@@ -742,6 +742,15 @@ class TestDatabasesField:
 
         assert field.json_schema_extra["parameters"]["knowledgeBases"] == []
 
+    def test_databases_field_with_dynamic_knowledge_bases(self):
+        dynamic = {
+            "ref": "species",
+            "cases": {"Human": ["Reactome", "GO"], "Mouse": ["Reactome"]},
+        }
+        field = databases_field(knowledge_bases=dynamic)
+
+        assert field.json_schema_extra["parameters"]["knowledgeBases"] == dynamic
+
 
 class TestFieldHelpersIntegration:
     """Integration tests for field helpers"""
