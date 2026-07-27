@@ -47,6 +47,15 @@ from .conditional_validator import ConditionalRequiredMixin
 from .rules import Rule, EqualsToValueRule, EqualsToFieldRule, RequiredRule, ColumnValidationRule, ColumnFromFieldValidationRule
 
 from .md_dataset_base_model import MdDatasetBaseModel
+
+# Runtime validation of a data payload against a form-definition dict
+from .form_validator import (
+    validate_form,
+    is_valid_form,
+    ValidationResult,
+    FieldError,
+    FormValidationError,
+)
 __all__ = [
     # Field helpers
     "boolean_field",
@@ -89,5 +98,12 @@ __all__ = [
     "RequiredRule",
     "ColumnValidationRule",
     "ColumnFromFieldValidationRule",
-    "MdDatasetBaseModel"
+    "MdDatasetBaseModel",
+
+    # Form-definition validation
+    "validate_form",
+    "is_valid_form",
+    "ValidationResult",
+    "FieldError",
+    "FormValidationError",
 ] 
