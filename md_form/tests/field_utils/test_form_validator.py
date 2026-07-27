@@ -253,6 +253,8 @@ class TestUnknownFields:
         result = validate_form(
             self.definition, {"name": "x", "extra": 1}, allow_unknown=False
         )
+        assert not result.is_valid
+        assert result.errors[0].__str__() == "extra: unknown field not present in the form definition"
         assert ("extra", "unknown field not present in the form definition") in _errors(result)
 
 
@@ -306,11 +308,13 @@ class TestTutorialForms:
         )
         assert not result.is_valid
 
+    datasets = [{"id": "ds1", "name": "Dataset 1", "type": "INTENSITY", "state": "COMPLETED"}]
+
     def test_transform_intensities_conditional_fields(self):
         definition = self._load("transform_intensities_form.json")
         # input_datasets absent -> the `when: is_present input_datasets` fields are inactive,
         # but input_datasets itself is required.
-        result = validate_form(definition, {})
+        result = validate_form(definition, {}, datasets=self.datasets)
         assert ("input_datasets", "is required") in _errors(result)
 
     def test_transform_intensities_valid(self):
@@ -322,7 +326,7 @@ class TestTutorialForms:
             "apply_log_transform": True,
             "intensity_range": 0.5,
         }
-        assert validate_form(definition, data).is_valid
+        assert validate_form(definition, data, datasets=self.datasets).is_valid
 
 
 class TestDifferentialExpressionExample:
@@ -1257,38 +1261,83 @@ class TestDifferentialExpressionExample:
         },
     }
 
+    # The definition has an input_datasets field (fieldType "Datasets"), so a
+    # datasets list must be supplied to validate it.
+    datasets = [
+        {
+            "id": "intensity_dataset_id",
+            "name": "Denis uPhos tissue - pg_matrix (condition)",
+            "type": "INTENSITY",
+            "state": "COMPLETED",
+        }
+    ]
+
     def test_example_payload_is_valid(self):
-        assert validate_form(self.definition, self.payload).is_valid
+        assert validate_form(self.definition, self.payload, datasets=self.datasets).is_valid
 
     def test_missing_required_input_datasets(self):
         bad = dict(self.payload)
         del bad["input_datasets"]
-        result = validate_form(self.definition, bad)
+        result = validate_form(self.definition, bad, datasets=self.datasets)
         assert ("input_datasets", "is required") in _errors(result)
+
+    def test_datasets_required_when_omitted(self):
+        # The form has a Datasets field but no datasets list is supplied.
+        result = validate_form(self.definition, self.payload)
+        assert ("input_datasets", "a datasets list must be provided to validate this field") in _errors(result)
+
+    def test_selected_dataset_not_in_provided_list(self):
+        bad = dict(self.payload)
+        bad["input_datasets"] = ["some_other_id"]
+        result = validate_form(self.definition, bad, datasets=self.datasets)
+        assert ("input_datasets", "dataset 'some_other_id' is not in the provided datasets") in _errors(result)
+
+    def test_selected_dataset_as_dicts(self):
+        # A selection expressed as dataset dicts (with an id) is matched by id.
+        ok = dict(self.payload)
+        ok["input_datasets"] = [{"id": "intensity_dataset_id", "name": "whatever"}]
+        assert validate_form(self.definition, ok, datasets=self.datasets).is_valid
+
+    def test_dataset_wrong_type(self):
+        # input_datasets declares parameters.type == "INTENSITY".
+        datasets = [{"id": "intensity_dataset_id", "name": "x", "type": "PAIRWISE", "state": "COMPLETED"}]
+        result = validate_form(self.definition, self.payload, datasets=datasets)
+        assert (
+            "input_datasets",
+            "dataset 'intensity_dataset_id' must be of type 'INTENSITY', not 'PAIRWISE'",
+        ) in _errors(result)
+
+    def test_dataset_not_completed(self):
+        datasets = [{"id": "intensity_dataset_id", "name": "x", "type": "INTENSITY", "state": "PROCESSING"}]
+        result = validate_form(self.definition, self.payload, datasets=datasets)
+        assert (
+            "input_datasets",
+            "dataset 'intensity_dataset_id' must be in state 'COMPLETED', not 'PROCESSING'",
+        ) in _errors(result)
 
     def test_bad_de_method_option(self):
         bad = dict(self.payload)
         bad["de_method_protein"] = "not-a-method"
-        assert not validate_form(self.definition, bad).is_valid
+        assert not validate_form(self.definition, bad, datasets=self.datasets).is_valid
 
     def test_bad_filter_logic_option(self):
         bad = dict(self.payload)
         bad["filter_valid_values_logic"] = "sometimes"
-        assert not validate_form(self.definition, bad).is_valid
+        assert not validate_form(self.definition, bad, datasets=self.datasets).is_valid
 
     def test_missing_conditional_required(self):
         # filter_threshold_percentage is required only while
         # filter_values_criteria == "percentage" (and the form is active).
         bad = dict(self.payload)
         del bad["filter_threshold_percentage"]
-        result = validate_form(self.definition, bad)
+        result = validate_form(self.definition, bad, datasets=self.datasets)
         assert ("filter_threshold_percentage", "is required") in _errors(result)
 
     def test_number_bound_enforced(self):
         # filter_threshold_percentage is a NumberRange with min 0 / max 1.
         bad = dict(self.payload)
         bad["filter_threshold_percentage"] = 5
-        result = validate_form(self.definition, bad)
+        result = validate_form(self.definition, bad, datasets=self.datasets)
         assert ("filter_threshold_percentage", "must be <= 1") in _errors(result)
 
     def test_experiment_design_shape(self):
@@ -1300,7 +1349,7 @@ class TestDifferentialExpressionExample:
             ["Heart_1", "Heart_2"],
             ["Heart", "Heart"],
         ]
-        result = validate_form(self.definition, bad)
+        result = validate_form(self.definition, bad, datasets=self.datasets)
         assert not result.is_valid
         assert (
             "experiment_design",
@@ -1313,7 +1362,7 @@ class TestDifferentialExpressionExample:
             "sample_name": ["Heart_1", "Heart_2"],
             "condition": ["Heart"],
         }
-        result = validate_form(self.definition, bad)
+        result = validate_form(self.definition, bad, datasets=self.datasets)
         assert ("experiment_design", "table columns must all have the same length") in _errors(result)
 
     def test_experiment_design_duplicate_sample_names(self):
@@ -1324,7 +1373,7 @@ class TestDifferentialExpressionExample:
             "sample_name": ["Heart_1", "Heart_1"],
             "condition": ["Heart", "Heart"],
         }
-        result = validate_form(self.definition, bad)
+        result = validate_form(self.definition, bad, datasets=self.datasets)
         assert not result.is_valid
         assert (
             "experiment_design",

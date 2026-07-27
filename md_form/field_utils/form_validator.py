@@ -22,7 +22,9 @@ runtime, without needing the original Pydantic model. It enforces:
 * required fields (``is_required`` rules, gated by ``when`` conditions),
 * ``parameters.options`` membership (static lists and dynamic ``{ref, cases}``),
 * numeric ``parameters.min`` / ``parameters.max`` bounds,
-* the value/cross-field ``rules`` (``is_equal_to_value``, etc.).
+* the value/cross-field ``rules`` (``is_equal_to_value``, etc.),
+* dataset-selection fields against a supplied ``datasets`` list (see the
+  ``datasets`` argument of :func:`validate_form`).
 
 ``fieldType`` is a frontend widget hint rather than a reliable data type, so it
 is deliberately not used to type-check values. Rules that cannot be checked from
@@ -33,7 +35,14 @@ forward-compatible with new field/rule kinds.
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
+from .field_types import FieldType
 from .when import evaluate_when
+
+# fieldType of a dataset-selection field (see field_helpers.datasets_field).
+_DATASETS_FIELD_TYPE = FieldType.INTENSITY_INPUT_DATASET.value  # "Datasets"
+
+# Only fully-processed datasets are selectable.
+_COMPLETED_STATE = "COMPLETED"
 
 
 @dataclass(frozen=True)
@@ -90,6 +99,7 @@ def validate_form(
     definition: Dict[str, Any],
     data: Dict[str, Any],
     *,
+    datasets: Optional[List[Dict[str, Any]]] = None,
     allow_unknown: bool = True,
     raise_on_error: bool = False,
 ) -> ValidationResult:
@@ -99,6 +109,12 @@ def validate_form(
         definition: A form-definition dict. Either the whole translated payload
             (``{"properties": {...}}``) or the bare properties map.
         data: The submitted values, keyed by field name.
+        datasets: The datasets available for selection, each a dict with at
+            least an ``id`` (e.g. ``{"id": ..., "name": ..., "type": ...}``).
+            Required whenever the definition contains a dataset-selection field
+            (``fieldType == "Datasets"``): the selected ids in ``data`` are
+            checked against these. If the form has such a field and ``datasets``
+            is ``None``, that is reported as an error.
         allow_unknown: When ``False``, keys in ``data`` with no matching field
             in the definition are reported as errors. Defaults to ``True``
             because payloads often carry non-form metadata.
@@ -118,6 +134,8 @@ def validate_form(
     for name, spec in fields.items():
         errors.extend(_validate_field(name, spec, data))
 
+    errors.extend(_check_datasets(fields, data, datasets))
+
     if not allow_unknown:
         for key in data:
             if key not in fields:
@@ -125,6 +143,68 @@ def validate_form(
 
     result = ValidationResult(errors)
     return result.raise_if_invalid() if raise_on_error else result
+
+
+def _check_datasets(
+    fields: Dict[str, Any],
+    data: Dict[str, Any],
+    datasets: Optional[List[Dict[str, Any]]],
+) -> List[FieldError]:
+    """Cross-check dataset-selection fields against the available ``datasets``.
+
+    For every field whose ``fieldType`` is ``"Datasets"``:
+    * if ``datasets`` is ``None`` the field cannot be validated -> error;
+    * otherwise each selected dataset id in ``data`` must appear in ``datasets``,
+      match the field's required ``parameters.type`` (when set), and be in the
+      ``COMPLETED`` state.
+    """
+    errors: List[FieldError] = []
+    dataset_fields = [(n, s) for n, s in fields.items() if s.get("fieldType") == _DATASETS_FIELD_TYPE]
+    if not dataset_fields:
+        return errors
+
+    if datasets is None:
+        return [
+            FieldError(name, "a datasets list must be provided to validate this field")
+            for name, _ in dataset_fields
+        ]
+
+    by_id = {d["id"]: d for d in datasets if isinstance(d, dict) and "id" in d}
+    for name, spec in dataset_fields:
+        value = data.get(name)
+        if value is None:
+            continue
+        params = spec.get("parameters") or {}
+        required_type = params.get("type")
+        for ds_id in _selected_dataset_ids(value):
+            dataset = by_id.get(ds_id)
+            if dataset is None:
+                errors.append(FieldError(name, f"dataset {ds_id!r} is not in the provided datasets"))
+                continue
+            if required_type is not None and dataset.get("type") != required_type:
+                errors.append(FieldError(
+                    name,
+                    f"dataset {ds_id!r} must be of type {required_type!r}, not {dataset.get('type')!r}",
+                ))
+            if dataset.get("state") != _COMPLETED_STATE:
+                errors.append(FieldError(
+                    name,
+                    f"dataset {ds_id!r} must be in state {_COMPLETED_STATE!r}, not {dataset.get('state')!r}",
+                ))
+    return errors
+
+
+def _selected_dataset_ids(value: Any) -> List[Any]:
+    """Extract the selected dataset ids from a field value.
+
+    Accepts a single value or a list, where each item is either an id or a
+    dict carrying an ``id``.
+    """
+    items = value if isinstance(value, list) else [value]
+    ids: List[Any] = []
+    for item in items:
+        ids.append(item.get("id") if isinstance(item, dict) else item)
+    return ids
 
 
 def _get_field_defs(definition: Dict[str, Any]) -> Dict[str, Any]:
