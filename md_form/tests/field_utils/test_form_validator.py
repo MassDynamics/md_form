@@ -1307,6 +1307,24 @@ class TestDifferentialExpressionExample:
             "dataset 'intensity_dataset_id' must be of type 'INTENSITY', not 'PAIRWISE'",
         ) in _errors(result)
 
+    def test_missing_required_options(self):
+        bad = dict(self.payload)
+        del bad['filter_values_criteria']
+        result = validate_form(self.definition, bad, datasets=self.datasets)
+        assert (
+                   "filter_values_criteria",
+                   "is required",
+               ) in _errors(result)
+
+    def test_missing_required_boolean(self):
+        bad = dict(self.payload)
+        del bad['limma_trend']
+        result = validate_form(self.definition, bad, datasets=self.datasets)
+        assert (
+                   "limma_trend",
+                   "is required",
+               ) in _errors(result)
+
     def test_dataset_not_completed(self):
         datasets = [{"id": "intensity_dataset_id", "name": "x", "type": "INTENSITY", "state": "PROCESSING"}]
         result = validate_form(self.definition, self.payload, datasets=datasets)
@@ -1379,5 +1397,8 @@ class TestDifferentialExpressionExample:
             "experiment_design",
             "column 'sample_name' must contain unique values",
         ) in _errors(result)
+
+
+
 
 

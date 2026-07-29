@@ -8,5 +8,5 @@ from .translate_payload import translate_payload
 from . import field_utils
 from .field_utils import validate_form, is_valid_form
 
-__version__ = "0.3.1"
+__version__ = "0.3.2"
 __all__ = ["translate_payload", "field_utils", "validate_form", "is_valid_form"] 

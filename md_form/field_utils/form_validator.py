@@ -41,6 +41,9 @@ from .when import evaluate_when
 # fieldType of a dataset-selection field (see field_helpers.datasets_field).
 _DATASETS_FIELD_TYPE = FieldType.INTENSITY_INPUT_DATASET.value  # "Datasets"
 
+# fieldType of a boolean (checkbox/toggle) field.
+_BOOLEAN_FIELD_TYPE = FieldType.BOOLEAN.value  # "Boolean"
+
 # Only fully-processed datasets are selectable.
 _COMPLETED_STATE = "COMPLETED"
 
@@ -239,7 +242,7 @@ def _validate_field(name: str, spec: Dict[str, Any], data: Dict[str, Any]) -> Li
     present = name in data and not _is_absent(data.get(name))
 
     if not present:
-        if _has_required_rule(rules):
+        if _has_required_rule(rules) or _is_implicitly_required(spec):
             return [FieldError(name, "is required")]
         return []
 
@@ -268,6 +271,28 @@ def _normalize_rules(rules: Any) -> List[Dict[str, Any]]:
 
 def _has_required_rule(rules: List[Dict[str, Any]]) -> bool:
     return any(r.get("name") == "is_required" for r in rules)
+
+
+def _is_implicitly_required(spec: Dict[str, Any]) -> bool:
+    """A field that ships a default and expects a definite value is mandatory.
+
+    Two shapes qualify:
+
+    * a choice field offering ``parameters.options``, and
+    * a boolean field (``fieldType == "Boolean"``),
+
+    when either also carries a ``default``. In both cases a value is always
+    expected — the default is what should be submitted if the user makes no
+    explicit choice — so absence means the value was stripped rather than left
+    unset, and we report it as required. This check only runs once the field's
+    ``when`` gate is satisfied (see :func:`_validate_field`).
+    """
+    if "default" not in spec:
+        return False
+    if spec.get("fieldType") == _BOOLEAN_FIELD_TYPE:
+        return True
+    params = spec.get("parameters")
+    return isinstance(params, dict) and "options" in params
 
 
 def _allowed_option_values(options: Any, data: Dict[str, Any]) -> Optional[List[Any]]:
