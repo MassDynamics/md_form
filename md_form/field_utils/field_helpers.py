@@ -234,15 +234,22 @@ def numberrange_field(
 
 @field_builder(FieldType.INTENSITY_INPUT_DATASET)
 @typechecked
-def intensity_input_dataset_field() -> Dict[str, Any]:
-    """Create an intensity input dataset field."""
+def intensity_input_dataset_field(entity_types: Optional[List[str]] = None) -> Dict[str, Any]:
+    """Create an intensity input dataset field.
+
+    `entity_types` filters by entity type (e.g. ["protein", "gene"]).
+    """
+    parameters: Dict[str, Any] = {
+        "type": "INTENSITY",
+        "multiple": False,
+    }
+    if entity_types is not None:
+        parameters["entityTypes"] = entity_types
+
     return {
         "json_schema_extra": {
             "name": "Select Intensity dataset",
-            "parameters": {
-                "type": "INTENSITY",
-                "multiple": False
-            },
+            "parameters": parameters,
         }
     }
 
@@ -251,22 +258,22 @@ def intensity_input_dataset_field() -> Dict[str, Any]:
 def datasets_field(
     type: Optional[str] = None,
     multiple: Optional[bool] = None,
-    entity_type: Optional[str] = None,
+    entity_types: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     """Create a dataset search select field configurable for any dataset type.
 
     `type` filters the available datasets by dataset type (e.g. "INTENSITY",
     "PAIRWISE", "ANOVA"). Omit to allow selection of any dataset type.
     `multiple` controls whether multiple datasets can be selected (default False).
-    `entity_type` filters by entity type (e.g. "protein", "gene").
+    `entity_types` filters by entity type (e.g. ["protein", "gene"]).
     """
     parameters: Dict[str, Any] = {}
     if type is not None:
         parameters["type"] = type
     if multiple is not None:
         parameters["multiple"] = multiple
-    if entity_type is not None:
-        parameters["entityType"] = entity_type
+    if entity_types is not None:
+        parameters["entityTypes"] = entity_types
 
     result: Dict[str, Any] = {}
     if parameters:

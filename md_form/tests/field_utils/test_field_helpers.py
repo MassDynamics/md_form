@@ -463,6 +463,13 @@ class TestIntensityInputDatasetField:
         assert field.json_schema_extra["parameters"]["type"] == "INTENSITY"
         assert "multiple" in field.json_schema_extra["parameters"]
         assert field.json_schema_extra["parameters"]["multiple"] is False
+        assert "entityTypes" not in field.json_schema_extra["parameters"]
+
+    def test_intensity_input_dataset_field_with_entity_types(self):
+        """Test intensity_input_dataset_field with entity_types"""
+        field = intensity_input_dataset_field(entity_types=["protein", "gene"])
+
+        assert field.json_schema_extra["parameters"]["entityTypes"] == ["protein", "gene"]
 
 
 class TestDatasetSearchSelectField:
@@ -490,18 +497,18 @@ class TestDatasetSearchSelectField:
 
         assert field.json_schema_extra["parameters"]["multiple"] is False
 
-    def test_with_entity_type(self):
-        field = datasets_field(entity_type="protein")
+    def test_with_entity_types(self):
+        field = datasets_field(entity_types=["protein"])
 
-        assert field.json_schema_extra["parameters"]["entityType"] == "protein"
+        assert field.json_schema_extra["parameters"]["entityTypes"] == ["protein"]
 
     def test_with_all_params(self):
-        field = datasets_field(type="INTENSITY", multiple=True, entity_type="gene")
+        field = datasets_field(type="INTENSITY", multiple=True, entity_types=["gene"])
 
         params = field.json_schema_extra["parameters"]
         assert params["type"] == "INTENSITY"
         assert params["multiple"] is True
-        assert params["entityType"] == "gene"
+        assert params["entityTypes"] == ["gene"]
 
     def test_omits_unset_params(self):
         field = datasets_field(type="ANOVA")
