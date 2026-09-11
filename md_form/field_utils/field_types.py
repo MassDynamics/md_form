@@ -23,3 +23,4 @@ class FieldType(str, Enum):
     ENTITY_LIST_ENTITY_IDS = "EntityListEntityIds"
     ENTITY_LISTS = "ProteinLists"
     DATABASES = "Databases"
+    REFERENCE_DATA_FILE = "ReferenceDataFile"

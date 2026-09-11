@@ -22,6 +22,7 @@ from .field_helpers import (
     entity_list_entity_ids_field,
     entity_lists_field,
     databases_field,
+    reference_data_file_field,
 )
 
 # Import rules and rule builders
@@ -76,6 +77,7 @@ __all__ = [
     "entity_list_entity_ids_field",
     "entity_lists_field",
     "databases_field",
+    "reference_data_file_field",
 
     # Rules
     "is_equal_to_value",

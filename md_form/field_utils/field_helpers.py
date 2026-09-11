@@ -434,6 +434,12 @@ def databases_field(
     return result
 
 
+@field_builder(FieldType.REFERENCE_DATA_FILE)
+def reference_data_file_field() -> Dict[str, Any]:
+    """Pick a single reference data file; the field's value is that file's file_id."""
+    return {}
+
+
 @field_builder(FieldType.ENTITY_LISTS)
 @typechecked
 def entity_lists_field(

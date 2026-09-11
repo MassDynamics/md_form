@@ -7,7 +7,8 @@ from field_utils.field_helpers import (
     condition_comparisons_field, control_variables_field, numberrange_field,
     intensity_input_dataset_field, datasets_field, entity_type_field,
     sample_metadata_value_field, sample_metadata_columns_field,
-    sample_metadata_values_filter_field, entity_lists_field, databases_field
+    sample_metadata_values_filter_field, entity_lists_field, databases_field,
+    reference_data_file_field
 )
 from field_utils.field_types import FieldType
 
@@ -759,6 +760,23 @@ class TestDatabasesField:
         assert field.json_schema_extra["parameters"]["knowledgeBases"] == dynamic
 
 
+class TestReferenceDataFileField:
+    """Test cases for the reference_data_file_field function"""
+
+    def test_reference_data_file_field_basic(self):
+        field = reference_data_file_field()
+
+        assert isinstance(field, FieldInfo)
+        assert field.json_schema_extra["fieldType"] == FieldType.REFERENCE_DATA_FILE
+        assert "parameters" not in field.json_schema_extra
+
+    def test_reference_data_file_field_with_common_params(self):
+        field = reference_data_file_field(name="Reference file", description="Pick a file")
+
+        assert field.json_schema_extra["name"] == "Reference file"
+        assert field.json_schema_extra["description"] == "Pick a file"
+
+
 class TestFieldHelpersIntegration:
     """Integration tests for field helpers"""
 
@@ -784,6 +802,7 @@ class TestFieldHelpersIntegration:
             sample_metadata_values_filter_field(),
             entity_lists_field(),
             databases_field(),
+            reference_data_file_field(),
         ]
         
         for field in field_functions:
