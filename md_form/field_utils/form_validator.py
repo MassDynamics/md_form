@@ -251,6 +251,7 @@ def _validate_field(name: str, spec: Dict[str, Any], data: Dict[str, Any]) -> Li
 
     errors.extend(_check_options(name, spec, value, data))
     errors.extend(_check_bounds(name, spec, value))
+    errors.extend(_check_required_columns(name, spec, value, data))
     for rule in rules:
         err = _check_rule(name, rule, value, data)
         if err is not None:
@@ -360,6 +361,74 @@ def _check_bounds(name: str, spec: Dict[str, Any], value: Any) -> List[FieldErro
     if isinstance(maximum, (int, float)) and value > maximum:
         errors.append(FieldError(name, f"must be <= {maximum}"))
     return errors
+
+
+def _resolve_column_ref(path: str, data: Dict[str, Any]) -> List[Any]:
+    """Resolve one ``columnNames`` ref path against the submitted ``data``.
+
+    A plain path (``"condition_column"``) yields that field's value; a scalar
+    becomes a one-element list, a list is returned as-is. An array-projection
+    path (``"control_variables[].column"``) collects the ``column`` value from
+    each item of the referenced list. ``None``/absent values are dropped, so a
+    field the user has not filled in contributes no expected column.
+    """
+    if "[]." in path:
+        field_name, sub_key = path.split("[].", 1)
+        items = data.get(field_name)
+        if not isinstance(items, list):
+            return []
+        return [
+            item.get(sub_key)
+            for item in items
+            if isinstance(item, dict) and item.get(sub_key) is not None
+        ]
+
+    value = data.get(path)
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return [v for v in value if v is not None]
+    return [value]
+
+
+def _check_required_columns(name: str, spec: Dict[str, Any], value: Any, data: Dict[str, Any]) -> List[FieldError]:
+    """Ensure a table carries the columns named by ``parameters.columnNames``.
+
+    ``columnNames.ref`` lists the fields (or array projections) that hold the
+    column names this table must contain — e.g. the selected condition column
+    and each control variable's column. The referenced values are resolved
+    from ``data`` and every one must appear as a key in the submitted table.
+    Refs that resolve to nothing (unfilled fields) impose no requirement, and a
+    value that is not a table is left to the shape checks.
+    """
+    params = spec.get("parameters")
+    if not isinstance(params, dict):
+        return []
+    column_names = params.get("columnNames")
+    if not isinstance(column_names, dict):
+        return []
+    refs = column_names.get("ref")
+    if isinstance(refs, str):
+        refs = [refs]
+    if not isinstance(refs, list):
+        return []
+    if not isinstance(value, dict):
+        return []
+
+    missing: List[Any] = []
+    seen: set = set()
+    for ref in refs:
+        if not isinstance(ref, str):
+            continue
+        for column in _resolve_column_ref(ref, data):
+            if column not in value and column not in seen:
+                seen.add(column)
+                missing.append(column)
+
+    if not missing:
+        return []
+    joined = ", ".join(repr(column) for column in missing)
+    return [FieldError(name, f"table columns missing columns: {joined}")]
 
 
 def _check_table_shape(name: str, value: Any) -> Optional[FieldError]:

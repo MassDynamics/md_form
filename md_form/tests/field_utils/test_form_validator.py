@@ -8,6 +8,14 @@ from field_utils.form_validator import (
     is_valid_form,
     validate_form,
 )
+from field_utils import (
+    MdDatasetBaseModel,
+    condition_column_field,
+    control_variables_field,
+    experiment_design_field,
+    has_unique_column_values_in_table,
+)
+from translate_payload import translate_payload
 
 TUTORIAL_DIR = os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))),
@@ -1398,7 +1406,57 @@ class TestDifferentialExpressionExample:
             "column 'sample_name' must contain unique values",
         ) in _errors(result)
 
+class TestExperimentDesign:
+    """Build the experiment_design field with the real helpers, translate it to a
+    form definition, then validate submitted sample-metadata tables against it.
+    """
 
+    class _DesignForm(MdDatasetBaseModel):
+        condition_column: str = condition_column_field()
+        control_variables: dict = control_variables_field()
+        experiment_design: dict = experiment_design_field(
+            rules=[has_unique_column_values_in_table("sample_name")],
+        )
 
+    definition = translate_payload(_DesignForm.model_json_schema())
 
+    def test_valid_experiment_design(self):
+        # A well-formed sample-metadata table: every column is an equal-length
+        # list and the sample_name column holds unique values.
+        data = {
+            "condition_column": "condition",
+            "experiment_design": {
+                "sample_name": ["Heart_1", "Heart_2"],
+                "condition": ["Heart", "Brain"],
+            },
+        }
+        assert validate_form(self.definition, data).is_valid
 
+    def test_invalid_experiment_design_uneven_columns(self):
+        data = {
+            "condition_column": "condition",
+            "experiment_design": {
+                "sample_name": ["Heart_1", "Heart_2"],
+                "condition": ["Heart"],
+            },
+        }
+        result = validate_form(self.definition, data)
+        assert not result.is_valid
+        assert (
+            "experiment_design",
+            "table columns must all have the same length",
+        ) in _errors(result)
+
+    def test_invalid_missing_cols(self):
+        data = {
+            "condition_column": "condition",
+            "experiment_design": {
+                "sample_name": ["Heart_1", "Heart_2"]
+            },
+        }
+        result = validate_form(self.definition, data)
+        assert not result.is_valid
+        assert (
+                   "experiment_design",
+                   "table columns missing columns: 'condition'",
+               ) in _errors(result)
