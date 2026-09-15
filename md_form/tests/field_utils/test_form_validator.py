@@ -11,9 +11,11 @@ from field_utils.form_validator import (
 from field_utils import (
     MdDatasetBaseModel,
     condition_column_field,
+    condition_comparisons_field,
     control_variables_field,
     experiment_design_field,
     has_unique_column_values_in_table,
+    is_required,
 )
 from translate_payload import translate_payload
 
@@ -1460,3 +1462,37 @@ class TestExperimentDesign:
                    "experiment_design",
                    "table columns missing columns: 'condition'",
                ) in _errors(result)
+
+
+class TestConditionComparisonsRequired:
+    """A required PairwiseConditionComparisons field built with the real helper.
+
+    An empty ``{}`` submission carries no comparisons, so it counts as absent
+    and must fail the ``is_required`` check.
+    """
+
+    class _Form(MdDatasetBaseModel):
+        condition_comparisons: dict = condition_comparisons_field(rules=[is_required()])
+
+    definition = translate_payload(_Form.model_json_schema())
+
+    def test_empty_dict_is_invalid(self):
+        result = validate_form(self.definition, {"condition_comparisons": {}})
+        assert not result.is_valid
+        assert ("condition_comparisons", "is required") in _errors(result)
+
+    def test_no_pairs_given(self):
+        result = validate_form(self.definition, {"condition_comparisons": {"condition_comparison_pairs": []}})
+        assert not result.is_valid
+        assert ("condition_comparisons", "is required") in _errors(result)
+        result = validate_form(self.definition, {"condition_comparisons": {"condition_comparison_pairs": [[]]}})
+        assert not result.is_valid
+        assert ("condition_comparisons", "is required") in _errors(result)
+
+    def test_populated_is_valid(self):
+            data = {
+                "condition_comparisons": {
+                    "condition_comparison_pairs": [["Heart", "Brain"]],
+                }
+            }
+            assert validate_form(self.definition, data).is_valid

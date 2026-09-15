@@ -229,7 +229,25 @@ def _get_field_defs(definition: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _is_absent(value: Any) -> bool:
-    return value is None
+    """Treat ``None`` and "empty all the way down" values as not provided.
+
+    A required field needs at least one concrete scalar somewhere in its value.
+    ``None``, empty containers, and containers holding only other empty values
+    all count as absent and fail an ``is_required`` check just as a missing key
+    would. For example a PairwiseConditionComparisons submitted as ``{}``,
+    ``{"condition_comparison_pairs": []}`` or ``{"condition_comparison_pairs":
+    [[]]}`` carries no actual comparisons and is absent. Non-container values --
+    including falsy ones such as ``False`` and ``0`` -- are real and present.
+    """
+    if value is None:
+        return True
+    if isinstance(value, dict):
+        return all(_is_absent(v) for v in value.values())
+    if isinstance(value, (list, tuple, set)):
+        return all(_is_absent(v) for v in value)
+    if isinstance(value, str):
+        return len(value) == 0
+    return False
 
 
 def _validate_field(name: str, spec: Dict[str, Any], data: Dict[str, Any]) -> List[FieldError]:
