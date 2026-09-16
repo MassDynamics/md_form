@@ -435,8 +435,17 @@ def databases_field(
 
 
 @field_builder(FieldType.REFERENCE_DATA_FILE)
-def reference_data_file_field() -> Dict[str, Any]:
-    """Pick a single reference data file; the field's value is that file's file_id."""
+@typechecked
+def reference_data_file_field(accept: Optional[List[str]] = None) -> Dict[str, Any]:
+    """Pick a single reference data file; the field's value is that file's file_id.
+
+    `accept` restricts which file extensions/types are selectable (e.g.
+    [".csv", ".tsv"]); it is joined into a comma-separated `accept` string, as
+    the frontend file picker expects. Omit it (or pass an empty list) to allow
+    any file.
+    """
+    if accept:
+        return {"json_schema_extra": {"parameters": {"accept": ",".join(accept)}}}
     return {}
 
 

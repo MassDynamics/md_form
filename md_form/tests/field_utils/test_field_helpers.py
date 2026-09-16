@@ -1,5 +1,6 @@
 import pytest
 from typing import Dict, Any
+from typeguard import TypeCheckError
 from pydantic.fields import FieldInfo
 from field_utils.field_helpers import (
     boolean_field, string_field, number_field, select_field, multiple_select_field,
@@ -775,6 +776,36 @@ class TestReferenceDataFileField:
 
         assert field.json_schema_extra["name"] == "Reference file"
         assert field.json_schema_extra["description"] == "Pick a file"
+
+    def test_reference_data_file_field_with_single_accept(self):
+        field = reference_data_file_field(accept=[".csv"])
+
+        assert field.json_schema_extra["parameters"]["accept"] == ".csv"
+
+    def test_reference_data_file_field_with_multiple_accept(self):
+        field = reference_data_file_field(accept=[".csv", ".tsv", ".txt"])
+
+        assert field.json_schema_extra["parameters"]["accept"] == ".csv,.tsv,.txt"
+
+    def test_reference_data_file_field_empty_accept_omits_parameters(self):
+        field = reference_data_file_field(accept=[])
+
+        assert "parameters" not in field.json_schema_extra
+
+    def test_reference_data_file_field_none_accept_omits_parameters(self):
+        field = reference_data_file_field(accept=None)
+
+        assert "parameters" not in field.json_schema_extra
+
+    def test_reference_data_file_field_accept_with_common_params(self):
+        field = reference_data_file_field(accept=[".csv"], name="Reference file")
+
+        assert field.json_schema_extra["name"] == "Reference file"
+        assert field.json_schema_extra["parameters"]["accept"] == ".csv"
+
+    def test_reference_data_file_field_rejects_non_list_accept(self):
+        with pytest.raises(TypeCheckError):
+            reference_data_file_field(accept=".csv")
 
 
 class TestFieldHelpersIntegration:
