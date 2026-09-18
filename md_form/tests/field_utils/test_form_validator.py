@@ -1463,6 +1463,87 @@ class TestExperimentDesign:
                    "table columns missing columns: 'condition'",
                ) in _errors(result)
 
+    def test_row_oriented_array_is_invalid(self):
+        # A row-oriented array-of-arrays (header row + data rows) is not a
+        # column table and must be rejected outright.
+        data = {
+            "condition_column": "condition",
+            "experiment_design": [
+                ["sample_name", "condition"],
+                ["Heart_1", "Heart"],
+                ["Heart_2", "Brain"],
+            ],
+        }
+        result = validate_form(self.definition, data)
+        assert not result.is_valid
+        assert (
+            "experiment_design",
+            "must be a table (an object mapping column names to lists)",
+        ) in _errors(result)
+
+
+class TestSampleMetadataTableShape:
+    """The SampleMetadataTable shape is enforced whenever the field is active
+    and filled in, even for a stale definition carrying no rules/parameters --
+    matching the empty-``rules``/empty-``parameters`` shape seen in prod.
+    """
+
+    definition = {
+        "properties": {
+            "experiment_design": {
+                "when": {},
+                "rules": [],
+                "default": None,
+                "fieldType": "SampleMetadataTable",
+                "parameters": {},
+            }
+        }
+    }
+
+    def test_array_of_arrays_rejected_without_rules(self):
+        data = {
+            "experiment_design": [
+                ["sample_name", "condition"],
+                ["Heart_1", "Heart"],
+            ]
+        }
+        result = validate_form(self.definition, data)
+        assert not result.is_valid
+        assert (
+            "experiment_design",
+            "must be a table (an object mapping column names to lists)",
+        ) in _errors(result)
+
+    def test_column_dict_valid_without_rules(self):
+        data = {
+            "experiment_design": {
+                "sample_name": ["Heart_1", "Heart_2"],
+                "condition": ["Heart", "Brain"],
+            }
+        }
+        assert validate_form(self.definition, data).is_valid
+
+    def test_inactive_field_skips_shape_check(self):
+        # A field gated off by an unmet `when` is inactive: its (malformed)
+        # value must not be shape-checked.
+        gated = {
+            "properties": {
+                "mode": {"fieldType": "String", "parameters": {}},
+                "experiment_design": {
+                    "when": {"property": "mode", "equals": "advanced"},
+                    "rules": [],
+                    "default": None,
+                    "fieldType": "SampleMetadataTable",
+                    "parameters": {},
+                },
+            }
+        }
+        data = {
+            "mode": "basic",
+            "experiment_design": [["sample_name"], ["Heart_1"]],
+        }
+        assert validate_form(gated, data).is_valid
+
 
 class TestConditionComparisonsRequired:
     """A required PairwiseConditionComparisons field built with the real helper.

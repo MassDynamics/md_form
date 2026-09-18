@@ -44,6 +44,9 @@ _DATASETS_FIELD_TYPE = FieldType.INTENSITY_INPUT_DATASET.value  # "Datasets"
 # fieldType of a boolean (checkbox/toggle) field.
 _BOOLEAN_FIELD_TYPE = FieldType.BOOLEAN.value  # "Boolean"
 
+# fieldType of a sample-metadata table (see field_helpers.experiment_design_field).
+_SAMPLE_METADATA_TABLE_FIELD_TYPE = FieldType.EXPERIMENT_DESIGN.value  # "SampleMetadataTable"
+
 # Only fully-processed datasets are selectable.
 _COMPLETED_STATE = "COMPLETED"
 
@@ -265,6 +268,17 @@ def _validate_field(name: str, spec: Dict[str, Any], data: Dict[str, Any]) -> Li
         return []
 
     value = data[name]
+
+    # A sample-metadata table must always be a proper column table once the
+    # field is active and filled in, regardless of which rules/parameters the
+    # (possibly stale) definition happens to carry. A malformed shape (e.g. a
+    # row-oriented array-of-arrays) makes the column/rule checks meaningless, so
+    # report just the shape failure and stop.
+    if spec.get("fieldType") == _SAMPLE_METADATA_TABLE_FIELD_TYPE:
+        shape_error = _check_table_shape(name, value)
+        if shape_error is not None:
+            return [shape_error]
+
     errors: List[FieldError] = []
 
     errors.extend(_check_options(name, spec, value, data))
