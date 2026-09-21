@@ -449,6 +449,36 @@ def reference_data_file_field(accept: Optional[List[str]] = None) -> Dict[str, A
     return {}
 
 
+@field_builder(FieldType.DATASET_TABLE_VALUE)
+@typechecked
+def dataset_table_value_field(
+    table_name: str,
+    column_name: str,
+    datasets_ref: str = "input_datasets",
+    multiple: Optional[bool] = None,
+) -> Dict[str, Any]:
+    """Pick one or more values from a named column of a dataset's table.
+
+    The frontend reads `table_name` (`datasetTableName`) and `column_name`
+    (`datasetTableColumnName`) to know which table/column of the dataset to
+    source the selectable values from, and `datasets_ref` (the field holding
+    the dataset reference) to resolve the dataset itself.
+
+    `multiple` toggles single vs. multi selection; it is omitted from the
+    payload when unset so the frontend applies its own default.
+    """
+    parameters: Dict[str, Any] = {
+        "datasetsSearch": {"ref": datasets_ref},
+        "datasetTableName": table_name,
+        "datasetTableColumnName": column_name,
+    }
+
+    if multiple is not None:
+        parameters["multiple"] = multiple
+
+    return {"json_schema_extra": {"parameters": parameters}}
+
+
 @field_builder(FieldType.ENTITY_LISTS)
 @typechecked
 def entity_lists_field(

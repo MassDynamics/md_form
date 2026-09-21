@@ -9,7 +9,7 @@ from field_utils.field_helpers import (
     intensity_input_dataset_field, datasets_field, entity_type_field,
     sample_metadata_value_field, sample_metadata_columns_field,
     sample_metadata_values_filter_field, entity_lists_field, databases_field,
-    reference_data_file_field
+    reference_data_file_field, dataset_table_value_field
 )
 from field_utils.field_types import FieldType
 
@@ -808,6 +808,61 @@ class TestReferenceDataFileField:
             reference_data_file_field(accept=".csv")
 
 
+class TestDatasetTableValueField:
+    """Test cases for the dataset_table_value_field function"""
+
+    def test_dataset_table_value_field_basic(self):
+        field = dataset_table_value_field(
+            table_name="PTM_Metadata", column_name="PTMName"
+        )
+
+        assert isinstance(field, FieldInfo)
+        assert field.json_schema_extra["fieldType"] == FieldType.DATASET_TABLE_VALUE
+        parameters = field.json_schema_extra["parameters"]
+        assert parameters["datasetsSearch"]["ref"] == "input_datasets"
+        assert parameters["datasetTableName"] == "PTM_Metadata"
+        assert parameters["datasetTableColumnName"] == "PTMName"
+        assert "multiple" not in parameters
+
+    def test_dataset_table_value_field_custom_datasets_ref(self):
+        field = dataset_table_value_field(
+            table_name="PTM_Metadata",
+            column_name="PTMName",
+            datasets_ref="other_datasets",
+        )
+
+        assert field.json_schema_extra["parameters"]["datasetsSearch"]["ref"] == "other_datasets"
+
+    def test_dataset_table_value_field_multiple(self):
+        field = dataset_table_value_field(
+            table_name="PTM_Metadata", column_name="PTMName", multiple=True
+        )
+
+        assert field.json_schema_extra["parameters"]["multiple"] is True
+
+    def test_dataset_table_value_field_with_common_params(self):
+        field = dataset_table_value_field(
+            table_name="PTM_Metadata",
+            column_name="PTMName",
+            multiple=True,
+            name="Modification Types",
+            description="One or more modification types to display.",
+            group="Plot Configuration",
+        )
+
+        assert field.json_schema_extra["name"] == "Modification Types"
+        assert field.json_schema_extra["description"] == "One or more modification types to display."
+        assert field.json_schema_extra["group"] == "Plot Configuration"
+
+    def test_dataset_table_value_field_requires_table_and_column(self):
+        with pytest.raises(TypeError):
+            dataset_table_value_field()
+
+    def test_dataset_table_value_field_rejects_non_string_table_name(self):
+        with pytest.raises(TypeCheckError):
+            dataset_table_value_field(table_name=123, column_name="PTMName")
+
+
 class TestFieldHelpersIntegration:
     """Integration tests for field helpers"""
 
@@ -834,6 +889,7 @@ class TestFieldHelpersIntegration:
             entity_lists_field(),
             databases_field(),
             reference_data_file_field(),
+            dataset_table_value_field(table_name="PTM_Metadata", column_name="PTMName"),
         ]
         
         for field in field_functions:
