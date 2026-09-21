@@ -41,7 +41,7 @@ class TestFieldType:
     def test_field_type_iteration(self):
         """Test that all field types can be iterated over"""
         field_types = list(FieldType)
-        assert len(field_types) == 19
+        assert len(field_types) == 20
 
         expected_values = [
             "String", "Boolean", "Number", "NumberRange", "SampleMetadataTable",
@@ -49,7 +49,7 @@ class TestFieldType:
             "PairwiseControlVariables", "Datasets", "EntityType", "Multiple",
             "DatasetSampleMetadataValue", "DatasetSampleMetadataColumns",
             "SampleMetadataValuesFilter", "EntityListEntityIds", "ProteinLists",
-            "Databases", "ReferenceDataFile",
+            "Databases", "ReferenceDataFile", "DatasetTableValue",
         ]
         
         for field_type in field_types:
