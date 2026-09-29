@@ -242,6 +242,31 @@ def intensity_input_dataset_field(entity_types: Optional[List[str]] = None) -> D
     parameters: Dict[str, Any] = {
         "type": "INTENSITY",
         "multiple": False,
+        "min": 1,
+        "max": 1,
+    }
+    if entity_types is not None:
+        parameters["entityTypes"] = entity_types
+
+    return {
+        "json_schema_extra": {
+            "name": "Select Intensity dataset",
+            "parameters": parameters,
+        }
+    }
+
+@field_builder(FieldType.INTENSITY_INPUT_DATASET)
+@typechecked
+def intensity_input_datasets_field(entity_types: Optional[List[str]] = None, min: int = 1, max: int = 1) -> Dict[str, Any]:
+    """Create an intensity input dataset field.
+
+    `entity_types` filters by entity type (e.g. ["protein", "gene"]).
+    """
+    parameters: Dict[str, Any] = {
+        "type": "INTENSITY",
+        "multiple": True,
+        "min": min,
+        "max": max,
     }
     if entity_types is not None:
         parameters["entityTypes"] = entity_types

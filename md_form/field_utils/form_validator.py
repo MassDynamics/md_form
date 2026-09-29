@@ -21,7 +21,8 @@ runtime, without needing the original Pydantic model. It enforces:
 
 * required fields (``is_required`` rules, gated by ``when`` conditions),
 * ``parameters.options`` membership (static lists and dynamic ``{ref, cases}``),
-* numeric ``parameters.min`` / ``parameters.max`` bounds,
+* ``parameters.min`` / ``parameters.max`` bounds (a number's value, a string's
+  length, a list's item count),
 * the value/cross-field ``rules`` (``is_equal_to_value``, etc.),
 * dataset-selection fields against a supplied ``datasets`` list (see the
   ``datasets`` argument of :func:`validate_form`).
@@ -391,19 +392,48 @@ def _check_options(name: str, spec: Dict[str, Any], value: Any, data: Dict[str, 
     return errors
 
 
+def _is_bound(bound: Any) -> bool:
+    return isinstance(bound, (int, float)) and not isinstance(bound, bool)
+
+
 def _check_bounds(name: str, spec: Dict[str, Any], value: Any) -> List[FieldError]:
+    """Apply inclusive ``parameters.min`` / ``parameters.max`` bounds.
+
+    What is bounded depends on the submitted value, not the ``fieldType``, so
+    any field carrying ``min``/``max`` is checked the same way:
+
+    * a number is bounded by its value;
+    * a string by its length in characters;
+    * a list by its number of items.
+
+    Other values (booleans, objects, ...) are not bounded.
+    """
     params = spec.get("parameters")
     if not isinstance(params, dict):
         return []
-    if not isinstance(value, (int, float)) or isinstance(value, bool):
-        return []
-    errors: List[FieldError] = []
     minimum = params.get("min")
     maximum = params.get("max")
-    if isinstance(minimum, (int, float)) and value < minimum:
-        errors.append(FieldError(name, f"must be >= {minimum}"))
-    if isinstance(maximum, (int, float)) and value > maximum:
-        errors.append(FieldError(name, f"must be <= {maximum}"))
+
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        measured = value
+        too_small = f"must be >= {minimum}"
+        too_large = f"must be <= {maximum}"
+    elif isinstance(value, str):
+        measured = len(value)
+        too_small = f"must be at least {minimum} characters"
+        too_large = f"must be at most {maximum} characters"
+    elif isinstance(value, (list, tuple)):
+        measured = len(value)
+        too_small = f"must have at least {minimum} items"
+        too_large = f"must have at most {maximum} items"
+    else:
+        return []
+
+    errors: List[FieldError] = []
+    if _is_bound(minimum) and measured < minimum:
+        errors.append(FieldError(name, too_small))
+    if _is_bound(maximum) and measured > maximum:
+        errors.append(FieldError(name, too_large))
     return errors
 
 

@@ -6,12 +6,14 @@ from field_utils.field_helpers import (
     boolean_field, string_field, number_field, select_field, multiple_select_field,
     experiment_design_field, condition_column_field, condition_column_multi_select_field,
     condition_comparisons_field, control_variables_field, numberrange_field,
-    intensity_input_dataset_field, datasets_field, entity_type_field,
+    intensity_input_dataset_field, intensity_input_datasets_field, datasets_field, entity_type_field,
     sample_metadata_value_field, sample_metadata_columns_field,
     sample_metadata_values_filter_field, entity_lists_field, databases_field,
     reference_data_file_field, dataset_table_value_field
 )
 from field_utils.field_types import FieldType
+from field_utils.md_dataset_base_model import MdDatasetBaseModel
+from translate_payload import translate_payload
 
 
 class TestBooleanField:
@@ -465,6 +467,8 @@ class TestIntensityInputDatasetField:
         assert field.json_schema_extra["parameters"]["type"] == "INTENSITY"
         assert "multiple" in field.json_schema_extra["parameters"]
         assert field.json_schema_extra["parameters"]["multiple"] is False
+        assert field.json_schema_extra["parameters"]["min"] == 1
+        assert field.json_schema_extra["parameters"]["max"] == 1
         assert "entityTypes" not in field.json_schema_extra["parameters"]
 
     def test_intensity_input_dataset_field_with_entity_types(self):
@@ -472,6 +476,73 @@ class TestIntensityInputDatasetField:
         field = intensity_input_dataset_field(entity_types=["protein", "gene"])
 
         assert field.json_schema_extra["parameters"]["entityTypes"] == ["protein", "gene"]
+
+
+class TestIntensityInputDatasetsField:
+    """Test cases for the intensity_input_datasets_field function"""
+
+    def test_defaults(self):
+        field = intensity_input_datasets_field()
+
+        assert isinstance(field, FieldInfo)
+        assert field.json_schema_extra["fieldType"] == FieldType.INTENSITY_INPUT_DATASET
+        assert field.json_schema_extra["name"] == "Select Intensity dataset"
+        assert field.json_schema_extra["parameters"] == {
+            "type": "INTENSITY",
+            "multiple": True,
+            "min": 1,
+            "max": 1,
+        }
+
+    def test_with_min_and_max(self):
+        field = intensity_input_datasets_field(min=2, max=4)
+
+        assert field.json_schema_extra["parameters"]["min"] == 2
+        assert field.json_schema_extra["parameters"]["max"] == 4
+        assert field.json_schema_extra["parameters"]["multiple"] is True
+
+    def test_with_entity_types(self):
+        field = intensity_input_datasets_field(entity_types=["protein", "gene"], min=2, max=3)
+
+        assert field.json_schema_extra["parameters"] == {
+            "type": "INTENSITY",
+            "multiple": True,
+            "min": 2,
+            "max": 3,
+            "entityTypes": ["protein", "gene"],
+        }
+
+    def test_common_parameters_merge(self):
+        field = intensity_input_datasets_field(
+            min=2, max=4, parameters={"width": "large"}, group="Details"
+        )
+
+        assert field.json_schema_extra["group"] == "Details"
+        assert field.json_schema_extra["parameters"]["width"] == "large"
+        assert field.json_schema_extra["parameters"]["min"] == 2
+        assert field.json_schema_extra["parameters"]["max"] == 4
+
+    def test_rejects_non_int_min(self):
+        with pytest.raises(TypeCheckError):
+            intensity_input_datasets_field(min="2")
+
+    def test_rejects_non_int_max(self):
+        with pytest.raises(TypeCheckError):
+            intensity_input_datasets_field(max=2.5)
+
+    def test_translated_definition_keeps_min_and_max(self):
+        class _Form(MdDatasetBaseModel):
+            input_datasets: list = intensity_input_datasets_field(min=2, max=4)
+
+        definition = translate_payload(_Form.model_json_schema())
+
+        assert definition["input_datasets"]["fieldType"] == "Datasets"
+        assert definition["input_datasets"]["parameters"] == {
+            "type": "INTENSITY",
+            "multiple": True,
+            "min": 2,
+            "max": 4,
+        }
 
 
 class TestDatasetSearchSelectField:
@@ -881,6 +952,7 @@ class TestFieldHelpersIntegration:
             control_variables_field(),
             numberrange_field(),
             intensity_input_dataset_field(),
+            intensity_input_datasets_field(),
             datasets_field(),
             entity_type_field(),
             sample_metadata_value_field(),

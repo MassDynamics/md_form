@@ -119,6 +119,138 @@ class TestBounds:
         assert ("p", "must be <= 1.0") in _errors(result)
 
 
+class TestNumberBounds:
+    """For a number, ``min``/``max`` bound the value itself (inclusive)."""
+
+    definition = {
+        "properties": {
+            "n": {"fieldType": "Number", "parameters": {"min": 4, "max": 10}},
+        }
+    }
+
+    @pytest.mark.parametrize("value", [4, 4.5, 7, 10])
+    def test_within_bounds_is_valid(self, value):
+        assert validate_form(self.definition, {"n": value}).is_valid
+
+    @pytest.mark.parametrize("value", [3, 3.99, -5, 0])
+    def test_below_min_is_invalid(self, value):
+        result = validate_form(self.definition, {"n": value})
+        assert _errors(result) == {("n", "must be >= 4")}
+
+    @pytest.mark.parametrize("value", [11, 10.01, 1000])
+    def test_above_max_is_invalid(self, value):
+        result = validate_form(self.definition, {"n": value})
+        assert _errors(result) == {("n", "must be <= 10")}
+
+    def test_min_only(self):
+        definition = {"properties": {"n": {"fieldType": "Number", "parameters": {"min": 4}}}}
+        assert validate_form(definition, {"n": 1_000_000}).is_valid
+        assert _errors(validate_form(definition, {"n": 3})) == {("n", "must be >= 4")}
+
+    def test_max_only(self):
+        definition = {"properties": {"n": {"fieldType": "Number", "parameters": {"max": 10}}}}
+        assert validate_form(definition, {"n": -1_000_000}).is_valid
+        assert _errors(validate_form(definition, {"n": 11})) == {("n", "must be <= 10")}
+
+    def test_boolean_is_not_bounded_as_a_number(self):
+        definition = {"properties": {"b": {"fieldType": "Boolean", "parameters": {"min": 4, "max": 10}}}}
+        assert validate_form(definition, {"b": True}).is_valid
+        assert validate_form(definition, {"b": False}).is_valid
+
+
+class TestStringBounds:
+    """For a string, ``min``/``max`` bound its length (inclusive)."""
+
+    definition = {
+        "properties": {
+            "s": {"fieldType": "String", "parameters": {"min": 2, "max": 5}},
+        }
+    }
+
+    @pytest.mark.parametrize("value", ["ab", "abc", "abcde"])
+    def test_within_bounds_is_valid(self, value):
+        assert validate_form(self.definition, {"s": value}).is_valid
+
+    def test_too_short_is_invalid(self):
+        result = validate_form(self.definition, {"s": "a"})
+        assert _errors(result) == {("s", "must be at least 2 characters")}
+
+    def test_too_long_is_invalid(self):
+        result = validate_form(self.definition, {"s": "abcdef"})
+        assert _errors(result) == {("s", "must be at most 5 characters")}
+
+    def test_numeric_string_is_bounded_by_length_not_value(self):
+        # "100" is 3 characters long: within 2..5 even though 100 > 5.
+        assert validate_form(self.definition, {"s": "100"}).is_valid
+        # "1" is 1 character long: too short even though 1 is a small number.
+        result = validate_form(self.definition, {"s": "1"})
+        assert _errors(result) == {("s", "must be at least 2 characters")}
+
+    def test_empty_string_is_absent_not_too_short(self):
+        # An empty string counts as not provided, so an optional field passes...
+        assert validate_form(self.definition, {"s": ""}).is_valid
+        # ...and a required one reports "is required", not a length error.
+        required = {"properties": {"s": {
+            "fieldType": "String",
+            "rules": [{"name": "is_required"}],
+            "parameters": {"min": 2, "max": 5},
+        }}}
+        assert _errors(validate_form(required, {"s": ""})) == {("s", "is required")}
+
+
+class TestListBounds:
+    """For a list, ``min``/``max`` bound the number of items (inclusive)."""
+
+    definition = {
+        "properties": {
+            "l": {"fieldType": "Multiple", "parameters": {"min": 2, "max": 4}},
+        }
+    }
+
+    @pytest.mark.parametrize("value", [["a", "b"], ["a", "b", "c"], ["a", "b", "c", "d"]])
+    def test_within_bounds_is_valid(self, value):
+        assert validate_form(self.definition, {"l": value}).is_valid
+
+    def test_too_few_items_is_invalid(self):
+        result = validate_form(self.definition, {"l": ["a"]})
+        assert _errors(result) == {("l", "must have at least 2 items")}
+
+    def test_too_many_items_is_invalid(self):
+        result = validate_form(self.definition, {"l": ["a", "b", "c", "d", "e"]})
+        assert _errors(result) == {("l", "must have at most 4 items")}
+
+    def test_numeric_items_are_bounded_by_count_not_value(self):
+        # Two items: within 2..4 even though 100 > 4.
+        assert validate_form(self.definition, {"l": [100, 200]}).is_valid
+        # Five small numbers: too many items even though each is within 2..4.
+        result = validate_form(self.definition, {"l": [2, 3, 3, 3, 4]})
+        assert _errors(result) == {("l", "must have at most 4 items")}
+
+    def test_empty_list_is_absent_not_too_short(self):
+        assert validate_form(self.definition, {"l": []}).is_valid
+        required = {"properties": {"l": {
+            "fieldType": "Multiple",
+            "rules": [{"name": "is_required"}],
+            "parameters": {"min": 2, "max": 4},
+        }}}
+        assert _errors(validate_form(required, {"l": []})) == {("l", "is required")}
+
+    def test_dataset_selection_is_bounded_by_count(self):
+        # A multi-dataset picker (intensity_input_datasets_field) carries its
+        # selection limits as parameters.min/max.
+        definition = {"properties": {"input_datasets": {
+            "fieldType": "Datasets",
+            "parameters": {"type": "INTENSITY", "multiple": True, "min": 2, "max": 4},
+        }}}
+        datasets = [{"id": i, "type": "INTENSITY", "state": "COMPLETED"} for i in "abcde"]
+
+        assert validate_form(definition, {"input_datasets": ["a", "b"]}, datasets=datasets).is_valid
+        result = validate_form(definition, {"input_datasets": ["a"]}, datasets=datasets)
+        assert _errors(result) == {("input_datasets", "must have at least 2 items")}
+        result = validate_form(definition, {"input_datasets": list("abcde")}, datasets=datasets)
+        assert _errors(result) == {("input_datasets", "must have at most 4 items")}
+
+
 class TestOptions:
     definition = {
         "properties": {
