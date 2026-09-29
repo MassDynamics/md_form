@@ -1029,3 +1029,72 @@ class TestFieldHelpersIntegration:
         # Number field should always have number type
         number_field_instance = number_field()
         assert number_field_instance.json_schema_extra["fieldType"] == FieldType.NUMBER 
+
+class TestPydanticDefaults:
+    """A helper's ``default`` is the Pydantic default too, not just the UI prefill.
+
+    Regression: ``numberrange_field(default=0.01)`` used to give the model field
+    ``default=None``, so a payload that left the field out (e.g. an API run
+    rather than the UI form) arrived as ``None`` instead of ``0.01``.
+    """
+
+    class _ImputationParams(MdDatasetBaseModel):
+        imputation_methods: str = select_field(options=["mindet", "mnar", "knn", "constant"], default="mindet")
+        q: float = numberrange_field(default=0.01, ge=0.0, le=1.0, interval=0.01)
+        std_position: float = numberrange_field(default=1.8, ge=0.0, le=5.0, interval=0.1)
+        std_width: float = numberrange_field(default=0.3, ge=0.0, le=1.0, interval=0.1)
+        n_neighbors: int = numberrange_field(default=3, ge=1, le=20, interval=1)
+        constant_value: float = numberrange_field(default=0, ge=0.0, le=100.0, interval=1)
+        knn_tn_k: int = numberrange_field(default=5, ge=1, le=20, interval=1)
+
+    def test_missing_fields_take_helper_defaults(self):
+        params = self._ImputationParams()
+        assert params.imputation_methods == "mindet"
+        assert params.q == 0.01
+        assert params.std_position == 1.8
+        assert params.std_width == 0.3
+        assert params.n_neighbors == 3
+        assert params.constant_value == 0
+        assert params.knn_tn_k == 5
+
+    def test_mindet_payload_without_q_gets_default_q(self):
+        params = self._ImputationParams.model_validate({"imputation_methods": "mindet"})
+        assert params.q == 0.01
+
+    def test_falsy_default_is_kept(self):
+        # 0 is a real default, not "unset".
+        assert self._ImputationParams.model_fields["constant_value"].default == 0
+
+    def test_explicit_values_override_defaults(self):
+        params = self._ImputationParams(q=0.0, constant_value=7)
+        assert params.q == 0.0
+        assert params.constant_value == 7
+
+    @pytest.mark.parametrize(
+        "field",
+        [
+            boolean_field(default=True),
+            string_field(default="x"),
+            number_field(default=2),
+            select_field(options=["a", "b"], default="a"),
+            multiple_select_field(options=["a", "b"], default=["a"]),
+            numberrange_field(default=0.5),
+            entity_type_field(default="protein"),
+        ],
+    )
+    def test_every_helper_passes_default_to_pydantic(self, field):
+        assert field.default == field.json_schema_extra["default"]
+
+    def test_field_without_default_still_defaults_to_none(self):
+        assert numberrange_field().default is None
+        assert number_field().default is None
+
+    def test_required_field_with_default_stays_required(self):
+        from field_utils import is_required
+
+        assert numberrange_field(default=0.5, rules=[is_required()]).is_required()
+
+    def test_json_schema_default_unchanged(self):
+        schema = translate_payload(self._ImputationParams.model_json_schema())
+        assert schema["q"]["default"] == 0.01
+        assert schema["constant_value"]["default"] == 0

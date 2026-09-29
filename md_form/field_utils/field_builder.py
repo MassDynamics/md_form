@@ -74,8 +74,12 @@ def field_builder(field_type: FieldType) -> Callable[[Callable], Callable]:
             # When 'when' is present, the requirement is conditional — always
             # optional at the Pydantic level. The ConditionalRequiredMixin
             # enforces the actual requirement at validation time.
+            #
+            # A helper's `default` (the UI prefill in json_schema_extra) is
+            # also the Pydantic default, so a caller that leaves the field out
+            # gets that value rather than None.
             if not has_required or when is not None:
-                field_kwargs["default"] = None
+                field_kwargs["default"] = json_schema_extra.get("default")
             
             # Add any non-json_schema_extra parameters (like discriminator)
             for key, value in field_params.items():
