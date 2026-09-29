@@ -1,5 +1,6 @@
 import json
 import os
+from typing import Optional
 
 import pytest
 
@@ -21,7 +22,9 @@ from field_utils import (
     is_required,
     number_field,
     numberrange_field,
+    select_field,
 )
+from field_utils.when import When
 from translate_payload import translate_payload
 
 TUTORIAL_DIR = os.path.join(
@@ -56,6 +59,52 @@ class TestRequired:
 
     def test_optional_field_absent_is_fine(self):
         assert validate_form(self.definition, {"name": "x"}).is_valid
+
+
+class TestRequiredOnlyByRule:
+    """Only an ``is_required`` rule makes a field required, whatever its default."""
+
+    class _Form(MdDatasetBaseModel):
+        filter_method: Optional[str] = select_field(
+            default=None,
+            when=When.is_present("input_datasets"),
+            parameters={
+                "options": [
+                    {"name": "None", "value": None},
+                    {"name": "filter samples and entities", "value": "goodSamplesGenes"},
+                ],
+            },
+        )
+        network_type: str = select_field(default="signed", options=["signed", "unsigned"])
+        log_transform: bool = boolean_field(default=True)
+        flag: Optional[bool] = boolean_field()
+
+    definition = translate_payload(_Form.model_json_schema())
+
+    def test_null_option_with_null_default_is_valid(self):
+        # Regression: "default": null plus options was treated as required, so
+        # choosing the "None" option failed with "filter_method: is required".
+        data = {"input_datasets": ["ds"], "filter_method": None}
+        assert validate_form(self.definition, data).is_valid
+
+    def test_fields_with_defaults_may_be_left_out(self):
+        assert validate_form(self.definition, {"input_datasets": ["ds"]}).is_valid
+
+    def test_null_boolean_without_rule_is_valid(self):
+        assert validate_form(self.definition, {"log_transform": None, "flag": None}).is_valid
+
+    def test_is_required_rule_still_enforced(self):
+        definition = {
+            "properties": {
+                "mode": {
+                    "fieldType": "String",
+                    "default": "a",
+                    "parameters": {"options": [{"name": "a", "value": "a"}]},
+                    "rules": [{"name": "is_required"}],
+                },
+            }
+        }
+        assert _errors(validate_form(definition, {})) == {("mode", "is required")}
 
 
 class TestConditionalRequired:
@@ -224,7 +273,8 @@ class TestBooleanType:
 class TestNumberType:
     """Number and NumberRange fields accept an int or a float, nothing else.
 
-    ``None`` is rejected too; an unset optional number is left out entirely.
+    ``None`` means unset only when the field's default is ``None`` (or it has
+    no default); a field with a real default rejects ``None``.
     """
 
     @pytest.fixture(params=["Number", "NumberRange"])
@@ -248,11 +298,36 @@ class TestNumberType:
     def test_empty_string_is_invalid_when_required(self, definition):
         assert _errors(validate_form(definition, {"required_n": ""})) == {("required_n", "must be a number")}
 
-    def test_none_is_invalid_when_optional(self, definition):
+    def test_none_is_valid_when_optional_without_default(self, definition):
+        assert validate_form(definition, {"n": None, "required_n": 1}).is_valid
+
+    def test_none_is_valid_when_default_is_none(self, definition):
+        definition["properties"]["n"]["default"] = None
+        assert validate_form(definition, {"n": None, "required_n": 1}).is_valid
+
+    def test_none_is_invalid_when_default_is_set(self, definition):
+        definition["properties"]["n"]["default"] = 0.25
         assert _errors(validate_form(definition, {"n": None, "required_n": 1})) == {("n", "must be a number")}
 
-    def test_none_is_invalid_when_required(self, definition):
+    def test_none_is_required_error_when_required_without_default(self, definition):
+        assert _errors(validate_form(definition, {"required_n": None})) == {("required_n", "is required")}
+
+    def test_none_is_invalid_when_required_with_default(self, definition):
+        definition["properties"]["required_n"]["default"] = 5
         assert _errors(validate_form(definition, {"required_n": None})) == {("required_n", "must be a number")}
+
+    def test_helper_built_none_default(self):
+        # Regression: an unset soft_power sent by the UI as null failed with
+        # "must be a number".
+        class _Form(MdDatasetBaseModel):
+            soft_power: Optional[int] = number_field(default=None, ge=1, le=30)
+            top_variance_fraction: Optional[float] = numberrange_field(default=0.25, ge=0.0, le=1.0)
+
+        definition = translate_payload(_Form.model_json_schema())
+        assert validate_form(definition, {"soft_power": None, "top_variance_fraction": 0.25}).is_valid
+        assert _errors(validate_form(definition, {"top_variance_fraction": None})) == {
+            ("top_variance_fraction", "must be a number")
+        }
 
     def test_missing_is_valid_when_optional(self, definition):
         assert validate_form(definition, {"required_n": 1}).is_valid
@@ -1666,23 +1741,16 @@ class TestDifferentialExpressionExample:
             "dataset 'intensity_dataset_id' must be of type 'INTENSITY', not 'PAIRWISE'",
         ) in _errors(result)
 
-    def test_missing_required_options(self):
+    def test_missing_options_field_without_rule_is_valid(self):
+        # A default does not make a field required; only an is_required rule does.
         bad = dict(self.payload)
         del bad['filter_values_criteria']
-        result = validate_form(self.definition, bad, datasets=self.datasets)
-        assert (
-                   "filter_values_criteria",
-                   "is required",
-               ) in _errors(result)
+        assert validate_form(self.definition, bad, datasets=self.datasets).is_valid
 
-    def test_missing_required_boolean(self):
+    def test_missing_boolean_without_rule_is_valid(self):
         bad = dict(self.payload)
         del bad['limma_trend']
-        result = validate_form(self.definition, bad, datasets=self.datasets)
-        assert (
-                   "limma_trend",
-                   "is required",
-               ) in _errors(result)
+        assert validate_form(self.definition, bad, datasets=self.datasets).is_valid
 
     def test_dataset_not_completed(self):
         datasets = [{"id": "intensity_dataset_id", "name": "x", "type": "INTENSITY", "state": "PROCESSING"}]

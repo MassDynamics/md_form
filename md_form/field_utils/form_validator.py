@@ -278,8 +278,8 @@ def _validate_field(name: str, spec: Dict[str, Any], data: Dict[str, Any]) -> Li
     # Boolean, number and dataset-table-value fields must carry a value of that type. An
     # empty string (or empty list/object) is the wrong type, not an absent value,
     # so it fails even on an optional field. ``None`` counts as unset for boolean
-    # and dataset-table-value fields, but a number field must be left out
-    # entirely rather than sent as ``None``.
+    # and dataset-table-value fields, and for a number field whose default is
+    # ``None``; a number field with a real default must not be sent as ``None``.
     if name in data:
         type_error = _check_value_type(name, spec, data[name])
         if type_error is not None:
@@ -289,7 +289,7 @@ def _validate_field(name: str, spec: Dict[str, Any], data: Dict[str, Any]) -> Li
     present = name in data and not _is_absent(data.get(name))
 
     if not present:
-        if _has_required_rule(rules) or _is_implicitly_required(spec):
+        if _has_required_rule(rules):
             return [FieldError(name, "is required")]
         return []
 
@@ -339,28 +339,6 @@ def _normalize_rules(rules: Any) -> List[Dict[str, Any]]:
 
 def _has_required_rule(rules: List[Dict[str, Any]]) -> bool:
     return any(r.get("name") == "is_required" for r in rules)
-
-
-def _is_implicitly_required(spec: Dict[str, Any]) -> bool:
-    """A field that ships a default and expects a definite value is mandatory.
-
-    Two shapes qualify:
-
-    * a choice field offering ``parameters.options``, and
-    * a boolean field (``fieldType == "Boolean"``),
-
-    when either also carries a ``default``. In both cases a value is always
-    expected — the default is what should be submitted if the user makes no
-    explicit choice — so absence means the value was stripped rather than left
-    unset, and we report it as required. This check only runs once the field's
-    ``when`` gate is satisfied (see :func:`_validate_field`).
-    """
-    if "default" not in spec:
-        return False
-    if spec.get("fieldType") == _BOOLEAN_FIELD_TYPE:
-        return True
-    params = spec.get("parameters")
-    return isinstance(params, dict) and "options" in params
 
 
 def _allowed_option_values(options: Any, data: Dict[str, Any]) -> Optional[List[Any]]:
@@ -533,11 +511,11 @@ def _check_value_type(name: str, spec: Dict[str, Any], value: Any) -> Optional[F
     false, a single value rather than a list or object).
 
     ``bool`` is a subclass of ``int`` in Python, so it is explicitly rejected as
-    a number. ``None`` is rejected for a number field but otherwise left to the
-    presence checks.
+    a number. ``None`` is rejected for a number field that has a non-``None``
+    default, and otherwise left to the presence checks.
     """
     field_type = spec.get("fieldType")
-    if value is None and field_type not in _NUMBER_FIELD_TYPES:
+    if value is None and (field_type not in _NUMBER_FIELD_TYPES or spec.get("default") is None):
         return None
     if field_type == _BOOLEAN_FIELD_TYPE and not isinstance(value, bool):
         return FieldError(name, "must be a boolean")
