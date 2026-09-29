@@ -15,6 +15,7 @@ from field_utils import (
     control_variables_field,
     experiment_design_field,
     has_unique_column_values_in_table,
+    is_not_included_in_values_from_field,
     is_required,
 )
 from translate_payload import translate_payload
@@ -78,7 +79,8 @@ class TestConditionalRequired:
 
     def test_provided_when_condition_met(self):
         assert validate_form(
-            self.definition, {"mode": "batch", "batch_variables": ["v1"]}
+            self.definition,
+            {"mode": "batch", "batch_variables": [{"type": "categorical", "column": "v1"}]},
         ).is_valid
 
     def test_inactive_field_is_skipped(self):
@@ -243,13 +245,16 @@ class TestValueRules:
             "control_variables": {"fieldType": "PairwiseControlVariables"},
             "condition_column": {"fieldType": "DatasetSampleMetadata",
                                  "rules": [{"name": "is_not_included_in_values_from_field",
-                                            "parameters": {"field": "control_variables"}}]},
+                                            "parameters": {"field": "control_variables",
+                                                           "values": "control_variables[].column"}}]},
         }}
         assert validate_form(
-            d, {"control_variables": ["batch"], "condition_column": "condition"}
+            d, {"control_variables": [{"type": "categorical", "column": "batch"}],
+                "condition_column": "condition"}
         ).is_valid
         assert not validate_form(
-            d, {"control_variables": ["condition"], "condition_column": "condition"}
+            d, {"control_variables": [{"type": "categorical", "column": "condition"}],
+                "condition_column": "condition"}
         ).is_valid
 
 
@@ -1577,3 +1582,130 @@ class TestConditionComparisonsRequired:
                 }
             }
             assert validate_form(self.definition, data).is_valid
+
+
+class TestControlVariables:
+    """PairwiseControlVariables built with the real helpers.
+
+    A control-variables value is a flat list of objects:
+    ``[{"type": "categorical", "column": "batch"}]``. A wrapped object such as
+    ``{"control_variables": [...]}`` is rejected. Each entry's ``column`` must
+    appear in the sample-metadata table and must not be the selected condition
+    column.
+    """
+
+    SHAPE_ERROR = "must be a list of control variables (objects with 'type' and 'column')"
+
+    class _Form(MdDatasetBaseModel):
+        condition_column: str = condition_column_field(
+            rules=[is_not_included_in_values_from_field("control_variables", "control_variables[].column")],
+        )
+        control_variables: list = control_variables_field()
+        experiment_design: dict = experiment_design_field()
+
+    class _RequiredForm(MdDatasetBaseModel):
+        control_variables: list = control_variables_field(rules=[is_required()])
+
+    definition = translate_payload(_Form.model_json_schema())
+    required_definition = translate_payload(_RequiredForm.model_json_schema())
+
+    def test_populated_is_valid(self):
+        data = {
+            "condition_column": "condition",
+            "control_variables": [{"type": "categorical", "column": "batch"}],
+            "experiment_design": {
+                "sample_name": ["Heart_1", "Heart_2"],
+                "condition": ["Heart", "Brain"],
+                "batch": ["b1", "b2"],
+            },
+        }
+        assert validate_form(self.definition, data).is_valid
+
+    def test_categorical_and_numerical_is_valid(self):
+        data = {
+            "condition_column": "condition",
+            "control_variables": [
+                {"type": "categorical", "column": "batch"},
+                {"type": "numerical", "column": "age"},
+            ],
+            "experiment_design": {
+                "sample_name": ["Heart_1", "Heart_2"],
+                "condition": ["Heart", "Brain"],
+                "batch": ["b1", "b2"],
+                "age": [34, 51],
+            },
+        }
+        assert validate_form(self.definition, data).is_valid
+
+    def test_optional_when_absent_or_empty(self):
+        table = {"sample_name": ["Heart_1"], "condition": ["Heart"]}
+        for control_variables in (None, []):
+            data = {
+                "condition_column": "condition",
+                "control_variables": control_variables,
+                "experiment_design": table,
+            }
+            assert validate_form(self.definition, data).is_valid, control_variables
+
+    def test_required_empty_is_invalid(self):
+        for control_variables in (None, [], [{}]):
+            result = validate_form(self.required_definition, {"control_variables": control_variables})
+            assert not result.is_valid, control_variables
+            assert ("control_variables", "is required") in _errors(result)
+
+    def test_required_populated_is_valid(self):
+        data = {"control_variables": [{"type": "categorical", "column": "batch"}]}
+        assert validate_form(self.required_definition, data).is_valid
+
+    def test_nested_object_is_invalid(self):
+        data = {
+            "control_variables": {
+                "control_variables": [{"type": "categorical", "column": "batch"}],
+            }
+        }
+        for definition in (self.definition, self.required_definition):
+            result = validate_form(definition, data)
+            assert not result.is_valid
+            assert ("control_variables", self.SHAPE_ERROR) in _errors(result)
+
+    def test_items_missing_type_or_column_are_invalid(self):
+        for control_variables in (
+            [{"column": "batch"}],
+            [{"type": "categorical"}],
+            ["batch"],
+        ):
+            result = validate_form(self.required_definition, {"control_variables": control_variables})
+            assert not result.is_valid, control_variables
+            assert ("control_variables", self.SHAPE_ERROR) in _errors(result)
+
+    def test_experiment_design_missing_control_variable_column(self):
+        data = {
+            "condition_column": "condition",
+            "control_variables": [{"type": "categorical", "column": "batch"}],
+            "experiment_design": {
+                "sample_name": ["Heart_1", "Heart_2"],
+                "condition": ["Heart", "Brain"],
+            },
+        }
+        result = validate_form(self.definition, data)
+        assert not result.is_valid
+        assert (
+            "experiment_design",
+            "table columns missing columns: 'batch'",
+        ) in _errors(result)
+
+    def test_condition_column_cannot_be_a_control_variable(self):
+        data = {
+            "condition_column": "condition",
+            "control_variables": [{"type": "categorical", "column": "condition"}],
+            "experiment_design": {
+                "sample_name": ["Heart_1", "Heart_2"],
+                "condition": ["Heart", "Brain"],
+            },
+        }
+        result = validate_form(self.definition, data)
+        assert not result.is_valid
+        assert (
+            "condition_column",
+            "must not be one of the values in 'control_variables'",
+        ) in _errors(result)

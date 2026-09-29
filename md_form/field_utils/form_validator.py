@@ -47,6 +47,9 @@ _BOOLEAN_FIELD_TYPE = FieldType.BOOLEAN.value  # "Boolean"
 # fieldType of a sample-metadata table (see field_helpers.experiment_design_field).
 _SAMPLE_METADATA_TABLE_FIELD_TYPE = FieldType.EXPERIMENT_DESIGN.value  # "SampleMetadataTable"
 
+# fieldType of a control-variables list (see field_helpers.control_variables_field).
+_CONTROL_VARIABLES_FIELD_TYPE = FieldType.CONTROL_VARIABLES.value  # "PairwiseControlVariables"
+
 # Only fully-processed datasets are selectable.
 _COMPLETED_STATE = "COMPLETED"
 
@@ -279,6 +282,15 @@ def _validate_field(name: str, spec: Dict[str, Any], data: Dict[str, Any]) -> Li
         if shape_error is not None:
             return [shape_error]
 
+    # Likewise a control-variables value must always be a flat list of
+    # ``{"type": ..., "column": ...}`` objects; a wrapped object such as
+    # ``{"control_variables": [...]}`` would silently bypass the
+    # ``control_variables[].column`` lookups other fields rely on.
+    if spec.get("fieldType") == _CONTROL_VARIABLES_FIELD_TYPE:
+        shape_error = _check_control_variables_shape(name, value)
+        if shape_error is not None:
+            return [shape_error]
+
     errors: List[FieldError] = []
 
     errors.extend(_check_options(name, spec, value, data))
@@ -475,13 +487,31 @@ def _check_table_shape(name: str, value: Any) -> Optional[FieldError]:
     return None
 
 
+def _check_control_variables_shape(name: str, value: Any) -> Optional[FieldError]:
+    """Ensure a value is a list of objects each carrying ``type`` and ``column``."""
+    if not isinstance(value, list) or not all(
+        isinstance(item, dict) and "type" in item and "column" in item for item in value
+    ):
+        return FieldError(
+            name, "must be a list of control variables (objects with 'type' and 'column')"
+        )
+    return None
+
+
 def _rule_params(rule: Dict[str, Any]) -> Dict[str, Any]:
     params = rule.get("parameters")
     return params if isinstance(params, dict) else {}
 
 
 def _referenced_values(data: Dict[str, Any], field_name: Any, values_key: Any) -> List[Any]:
-    """Collect the comparable values held by a referenced field."""
+    """Collect the comparable values held by a referenced field.
+
+    ``values_key`` is either a plain item key (``"column"``) or an
+    array-projection path (``"control_variables[].column"``), whose part after
+    ``[].`` is the item key.
+    """
+    if isinstance(values_key, str) and "[]." in values_key:
+        values_key = values_key.split("[].", 1)[1]
     referenced = data.get(field_name)
     if isinstance(referenced, list):
         if values_key is not None:
