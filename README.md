@@ -110,6 +110,7 @@ knowledge_bases = select_field(
 - `condition_comparisons_field()`
 - `control_variables_field(default=None)`
 - `intensity_input_dataset_field()`
+- `intensity_input_datasets_field(entity_types=None, min=1, max=None)`
 - `entity_type_field(default=None)`
 
 **Example:**
