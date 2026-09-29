@@ -23,13 +23,14 @@ runtime, without needing the original Pydantic model. It enforces:
 * ``parameters.options`` membership (static lists and dynamic ``{ref, cases}``),
 * ``parameters.min`` / ``parameters.max`` bounds (a number's value, a string's
   length, a list's item count),
-* value types for ``Boolean`` (a bool) and ``Number`` / ``NumberRange`` (an
-  int or float) fields,
+* value types for ``Boolean`` (a bool), ``Number`` / ``NumberRange`` (an
+  int or float) and ``DatasetTableValue`` (a list, or a single value when
+  ``parameters.multiple`` is false) fields,
 * the value/cross-field ``rules`` (``is_equal_to_value``, etc.),
 * dataset-selection fields against a supplied ``datasets`` list (see the
   ``datasets`` argument of :func:`validate_form`).
 
-Beyond the boolean and number fields above, ``fieldType`` is treated as a
+Beyond the boolean, number and dataset-table-value fields above, ``fieldType`` is treated as a
 frontend widget hint rather than a reliable data type, so it is not used to
 type-check other values. Rules that cannot be checked from
 the data alone are skipped rather than reported, so the validator stays
@@ -51,6 +52,10 @@ _BOOLEAN_FIELD_TYPE = FieldType.BOOLEAN.value  # "Boolean"
 # fieldTypes whose value must be a number (see field_helpers.number_field and
 # field_helpers.numberrange_field).
 _NUMBER_FIELD_TYPES = (FieldType.NUMBER.value, FieldType.NUMBER_RANGE.value)  # "Number", "NumberRange"
+
+# fieldType whose value must be a list, or a single value when single-select
+# (see field_helpers.dataset_table_value_field).
+_DATASET_TABLE_VALUE_FIELD_TYPE = FieldType.DATASET_TABLE_VALUE.value  # "DatasetTableValue"
 
 # fieldType of a sample-metadata table (see field_helpers.experiment_design_field).
 _SAMPLE_METADATA_TABLE_FIELD_TYPE = FieldType.EXPERIMENT_DESIGN.value  # "SampleMetadataTable"
@@ -270,7 +275,7 @@ def _validate_field(name: str, spec: Dict[str, Any], data: Dict[str, Any]) -> Li
     if when and not evaluate_when(when, data):
         return []
 
-    # Boolean and number fields must carry a value of that type. Only ``None``
+    # Boolean, number and dataset-table-value fields must carry a value of that type. Only ``None``
     # counts as unset for them: an empty string (or empty list/object) is the
     # wrong type, not an absent value, so it fails even on an optional field.
     if data.get(name) is not None:
@@ -521,7 +526,9 @@ def _check_required_columns(name: str, spec: Dict[str, Any], value: Any, data: D
 
 
 def _check_value_type(name: str, spec: Dict[str, Any], value: Any) -> Optional[FieldError]:
-    """Ensure a Boolean field holds a bool and a Number/NumberRange field a number.
+    """Ensure a Boolean field holds a bool, a Number/NumberRange field a number
+    and a DatasetTableValue field a list (or, when ``parameters.multiple`` is
+    false, a single value rather than a list or object).
 
     ``bool`` is a subclass of ``int`` in Python, so it is explicitly rejected as
     a number.
@@ -533,6 +540,13 @@ def _check_value_type(name: str, spec: Dict[str, Any], value: Any) -> Optional[F
         not isinstance(value, (int, float)) or isinstance(value, bool)
     ):
         return FieldError(name, "must be a number")
+    if field_type == _DATASET_TABLE_VALUE_FIELD_TYPE:
+        params = spec.get("parameters")
+        single = isinstance(params, dict) and params.get("multiple") is False
+        if single and isinstance(value, (list, tuple, dict)):
+            return FieldError(name, "must be a single value")
+        if not single and not isinstance(value, list):
+            return FieldError(name, "must be a list")
     return None
 
 

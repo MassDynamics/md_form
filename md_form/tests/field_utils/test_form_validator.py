@@ -14,6 +14,7 @@ from field_utils import (
     condition_column_field,
     condition_comparisons_field,
     control_variables_field,
+    dataset_table_value_field,
     experiment_design_field,
     has_unique_column_values_in_table,
     is_not_included_in_values_from_field,
@@ -270,6 +271,94 @@ class TestNumberType:
             ("n", "must be a number"),
             ("r", "must be a number"),
         }
+
+
+class TestDatasetTableValueType:
+    """A DatasetTableValue field's value must be a list, so a bare string is rejected."""
+
+    definition = {
+        "properties": {
+            "v": {"fieldType": "DatasetTableValue"},
+            "required_v": {"fieldType": "DatasetTableValue", "rules": [{"name": "is_required"}]},
+        }
+    }
+
+    @pytest.mark.parametrize("value", [["Phospho"], ["Phospho", "Acetyl"]])
+    def test_list_is_valid(self, value):
+        assert validate_form(self.definition, {"v": value, "required_v": value}).is_valid
+
+    @pytest.mark.parametrize("value", ["Phospho", "", 1, True, {}, {"value": "Phospho"}, ("Phospho",)])
+    def test_non_list_is_invalid(self, value):
+        result = validate_form(self.definition, {"v": value, "required_v": ["Phospho"]})
+        assert _errors(result) == {("v", "must be a list")}
+
+    def test_string_is_invalid_when_required(self):
+        result = validate_form(self.definition, {"required_v": "Phospho"})
+        assert _errors(result) == {("required_v", "must be a list")}
+
+    def test_none_is_valid_when_optional(self):
+        assert validate_form(self.definition, {"v": None, "required_v": ["Phospho"]}).is_valid
+
+    def test_none_is_invalid_when_required(self):
+        assert _errors(validate_form(self.definition, {"required_v": None})) == {("required_v", "is required")}
+
+    def test_helper_built_field(self):
+        class _Form(MdDatasetBaseModel):
+            v: list = dataset_table_value_field(
+                table_name="PTM_Metadata", column_name="PTMName", multiple=True, rules=[is_required()]
+            )
+
+        definition = translate_payload(_Form.model_json_schema())
+        assert validate_form(definition, {"v": ["Phospho"]}).is_valid
+        assert _errors(validate_form(definition, {"v": "Phospho"})) == {("v", "must be a list")}
+
+    def test_multiple_true_requires_list(self):
+        definition = {"properties": {"v": {"fieldType": "DatasetTableValue", "parameters": {"multiple": True}}}}
+        assert validate_form(definition, {"v": ["Phospho"]}).is_valid
+        assert _errors(validate_form(definition, {"v": "Phospho"})) == {("v", "must be a list")}
+
+
+class TestSingleDatasetTableValueType:
+    """With ``parameters.multiple`` false, a DatasetTableValue holds one value, not a list."""
+
+    definition = {
+        "properties": {
+            "v": {"fieldType": "DatasetTableValue", "parameters": {"multiple": False}},
+            "required_v": {
+                "fieldType": "DatasetTableValue",
+                "parameters": {"multiple": False},
+                "rules": [{"name": "is_required"}],
+            },
+        }
+    }
+
+    @pytest.mark.parametrize("value", ["Phospho", 1, 2.5])
+    def test_single_value_is_valid(self, value):
+        assert validate_form(self.definition, {"v": value, "required_v": value}).is_valid
+
+    @pytest.mark.parametrize("value", [["Phospho"], [], {}, {"value": "Phospho"}, ("Phospho",)])
+    def test_list_or_object_is_invalid(self, value):
+        result = validate_form(self.definition, {"v": value, "required_v": "Phospho"})
+        assert _errors(result) == {("v", "must be a single value")}
+
+    def test_none_is_valid_when_optional(self):
+        assert validate_form(self.definition, {"v": None, "required_v": "Phospho"}).is_valid
+
+    def test_none_is_invalid_when_required(self):
+        assert _errors(validate_form(self.definition, {"required_v": None})) == {("required_v", "is required")}
+
+    def test_empty_string_is_invalid_when_required(self):
+        assert _errors(validate_form(self.definition, {"required_v": ""})) == {("required_v", "is required")}
+
+    def test_helper_built_field(self):
+        class _Form(MdDatasetBaseModel):
+            v: str = dataset_table_value_field(
+                table_name="PTM_Metadata", column_name="PTMName", multiple=False, rules=[is_required()]
+            )
+
+        definition = translate_payload(_Form.model_json_schema())
+        assert validate_form(definition, {"v": "Phospho"}).is_valid
+        assert _errors(validate_form(definition, {"v": ["Phospho"]})) == {("v", "must be a single value")}
 
 
 class TestStringBounds:
