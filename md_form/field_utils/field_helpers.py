@@ -257,17 +257,20 @@ def intensity_input_dataset_field(entity_types: Optional[List[str]] = None) -> D
 
 @field_builder(FieldType.INTENSITY_INPUT_DATASET)
 @typechecked
-def intensity_input_datasets_field(entity_types: Optional[List[str]] = None, min: int = 1, max: int = 1) -> Dict[str, Any]:
-    """Create an intensity input dataset field.
+def intensity_input_datasets_field(entity_types: Optional[List[str]] = None, min: int = 1, max: Optional[int] = None) -> Dict[str, Any]:
+    """Create an intensity input datasets field (multi-select).
 
     `entity_types` filters by entity type (e.g. ["protein", "gene"]).
+    `min`/`max` bound how many datasets can be selected; `max` is omitted
+    when unset, leaving the selection unbounded above.
     """
     parameters: Dict[str, Any] = {
         "type": "INTENSITY",
         "multiple": True,
         "min": min,
-        "max": max,
     }
+    if max is not None:
+        parameters["max"] = max
     if entity_types is not None:
         parameters["entityTypes"] = entity_types
 

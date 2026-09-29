@@ -13,6 +13,7 @@ from field_utils.field_helpers import (
 )
 from field_utils.field_types import FieldType
 from field_utils.md_dataset_base_model import MdDatasetBaseModel
+from field_utils.form_validator import validate_form
 from translate_payload import translate_payload
 
 
@@ -491,8 +492,12 @@ class TestIntensityInputDatasetsField:
             "type": "INTENSITY",
             "multiple": True,
             "min": 1,
-            "max": 1,
         }
+
+    def test_max_omitted_when_unset(self):
+        # No max means no upper limit on how many datasets can be selected.
+        assert "max" not in intensity_input_datasets_field(min=2).json_schema_extra["parameters"]
+        assert "max" not in intensity_input_datasets_field(max=None).json_schema_extra["parameters"]
 
     def test_with_min_and_max(self):
         field = intensity_input_datasets_field(min=2, max=4)
@@ -529,6 +534,21 @@ class TestIntensityInputDatasetsField:
     def test_rejects_non_int_max(self):
         with pytest.raises(TypeCheckError):
             intensity_input_datasets_field(max=2.5)
+
+    def test_unset_max_leaves_selection_unbounded(self):
+        class _Form(MdDatasetBaseModel):
+            input_datasets: list = intensity_input_datasets_field(min=2)
+
+        definition = translate_payload(_Form.model_json_schema())
+        assert "max" not in definition["input_datasets"]["parameters"]
+
+        datasets = [{"id": str(i), "type": "INTENSITY", "state": "COMPLETED"} for i in range(50)]
+        selected = [d["id"] for d in datasets]
+        assert validate_form(definition, {"input_datasets": selected}, datasets=datasets).is_valid
+        result = validate_form(definition, {"input_datasets": ["0"]}, datasets=datasets)
+        assert ("input_datasets", "must have at least 2 items") in {
+            (e.field, e.message) for e in result.errors
+        }
 
     def test_translated_definition_keeps_min_and_max(self):
         class _Form(MdDatasetBaseModel):
