@@ -222,7 +222,10 @@ class TestBooleanType:
 
 
 class TestNumberType:
-    """Number and NumberRange fields accept an int or a float, nothing else."""
+    """Number and NumberRange fields accept an int or a float, nothing else.
+
+    ``None`` is rejected too; an unset optional number is left out entirely.
+    """
 
     @pytest.fixture(params=["Number", "NumberRange"])
     def definition(self, request):
@@ -245,11 +248,17 @@ class TestNumberType:
     def test_empty_string_is_invalid_when_required(self, definition):
         assert _errors(validate_form(definition, {"required_n": ""})) == {("required_n", "must be a number")}
 
-    def test_none_is_valid_when_optional(self, definition):
-        assert validate_form(definition, {"n": None, "required_n": 1}).is_valid
+    def test_none_is_invalid_when_optional(self, definition):
+        assert _errors(validate_form(definition, {"n": None, "required_n": 1})) == {("n", "must be a number")}
 
     def test_none_is_invalid_when_required(self, definition):
-        assert _errors(validate_form(definition, {"required_n": None})) == {("required_n", "is required")}
+        assert _errors(validate_form(definition, {"required_n": None})) == {("required_n", "must be a number")}
+
+    def test_missing_is_valid_when_optional(self, definition):
+        assert validate_form(definition, {"required_n": 1}).is_valid
+
+    def test_missing_is_invalid_when_required(self, definition):
+        assert _errors(validate_form(definition, {})) == {("required_n", "is required")}
 
     def test_non_number_is_invalid_when_required(self, definition):
         assert _errors(validate_form(definition, {"required_n": "5"})) == {("required_n", "must be a number")}

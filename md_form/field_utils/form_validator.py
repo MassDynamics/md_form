@@ -275,10 +275,12 @@ def _validate_field(name: str, spec: Dict[str, Any], data: Dict[str, Any]) -> Li
     if when and not evaluate_when(when, data):
         return []
 
-    # Boolean, number and dataset-table-value fields must carry a value of that type. Only ``None``
-    # counts as unset for them: an empty string (or empty list/object) is the
-    # wrong type, not an absent value, so it fails even on an optional field.
-    if data.get(name) is not None:
+    # Boolean, number and dataset-table-value fields must carry a value of that type. An
+    # empty string (or empty list/object) is the wrong type, not an absent value,
+    # so it fails even on an optional field. ``None`` counts as unset for boolean
+    # and dataset-table-value fields, but a number field must be left out
+    # entirely rather than sent as ``None``.
+    if name in data:
         type_error = _check_value_type(name, spec, data[name])
         if type_error is not None:
             return [type_error]
@@ -531,9 +533,12 @@ def _check_value_type(name: str, spec: Dict[str, Any], value: Any) -> Optional[F
     false, a single value rather than a list or object).
 
     ``bool`` is a subclass of ``int`` in Python, so it is explicitly rejected as
-    a number.
+    a number. ``None`` is rejected for a number field but otherwise left to the
+    presence checks.
     """
     field_type = spec.get("fieldType")
+    if value is None and field_type not in _NUMBER_FIELD_TYPES:
+        return None
     if field_type == _BOOLEAN_FIELD_TYPE and not isinstance(value, bool):
         return FieldError(name, "must be a boolean")
     if field_type in _NUMBER_FIELD_TYPES and (
