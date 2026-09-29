@@ -10,6 +10,7 @@ from field_utils.form_validator import (
 )
 from field_utils import (
     MdDatasetBaseModel,
+    boolean_field,
     condition_column_field,
     condition_comparisons_field,
     control_variables_field,
@@ -17,6 +18,8 @@ from field_utils import (
     has_unique_column_values_in_table,
     is_not_included_in_values_from_field,
     is_required,
+    number_field,
+    numberrange_field,
 )
 from translate_payload import translate_payload
 
@@ -156,6 +159,117 @@ class TestNumberBounds:
         definition = {"properties": {"b": {"fieldType": "Boolean", "parameters": {"min": 4, "max": 10}}}}
         assert validate_form(definition, {"b": True}).is_valid
         assert validate_form(definition, {"b": False}).is_valid
+
+
+class TestBooleanType:
+    """A Boolean field's value must be a bool; ``None`` only fails when required."""
+
+    definition = {
+        "properties": {
+            "flag": {"fieldType": "Boolean"},
+            "required_flag": {"fieldType": "Boolean", "rules": [{"name": "is_required"}]},
+        }
+    }
+
+    @pytest.mark.parametrize("value", [True, False])
+    def test_bool_is_valid(self, value):
+        assert validate_form(self.definition, {"flag": value, "required_flag": value}).is_valid
+
+    @pytest.mark.parametrize("value", [1, 0, 1.0, "true", "false", "yes", "", [], {}, [True], {"value": True}])
+    def test_non_bool_is_invalid(self, value):
+        result = validate_form(self.definition, {"flag": value, "required_flag": True})
+        assert _errors(result) == {("flag", "must be a boolean")}
+
+    def test_none_is_valid_when_optional(self):
+        assert validate_form(self.definition, {"flag": None, "required_flag": True}).is_valid
+
+    def test_missing_is_valid_when_optional(self):
+        assert validate_form(self.definition, {"required_flag": True}).is_valid
+
+    def test_none_is_invalid_when_required(self):
+        result = validate_form(self.definition, {"required_flag": None})
+        assert _errors(result) == {("required_flag", "is required")}
+
+    def test_non_bool_is_invalid_when_required(self):
+        result = validate_form(self.definition, {"required_flag": "true"})
+        assert _errors(result) == {("required_flag", "must be a boolean")}
+
+    def test_empty_string_is_invalid_when_required(self):
+        result = validate_form(self.definition, {"required_flag": ""})
+        assert _errors(result) == {("required_flag", "must be a boolean")}
+
+    def test_non_bool_ignored_when_inactive(self):
+        definition = {
+            "properties": {
+                "mode": {"fieldType": "String"},
+                "flag": {"fieldType": "Boolean", "when": {"property": "mode", "equals": "on"}},
+            }
+        }
+        assert validate_form(definition, {"mode": "off", "flag": "nope"}).is_valid
+        assert _errors(validate_form(definition, {"mode": "on", "flag": "nope"})) == {
+            ("flag", "must be a boolean")
+        }
+
+    def test_helper_built_field(self):
+        class _Form(MdDatasetBaseModel):
+            flag: bool = boolean_field(rules=[is_required()])
+
+        definition = translate_payload(_Form.model_json_schema())
+        assert validate_form(definition, {"flag": False}).is_valid
+        assert _errors(validate_form(definition, {"flag": "false"})) == {("flag", "must be a boolean")}
+        assert _errors(validate_form(definition, {"flag": None})) == {("flag", "is required")}
+
+
+class TestNumberType:
+    """Number and NumberRange fields accept an int or a float, nothing else."""
+
+    @pytest.fixture(params=["Number", "NumberRange"])
+    def definition(self, request):
+        return {
+            "properties": {
+                "n": {"fieldType": request.param},
+                "required_n": {"fieldType": request.param, "rules": [{"name": "is_required"}]},
+            }
+        }
+
+    @pytest.mark.parametrize("value", [0, 1, -3, 0.0, 0.5, -2.25, 1e10])
+    def test_int_or_float_is_valid(self, definition, value):
+        assert validate_form(definition, {"n": value, "required_n": value}).is_valid
+
+    @pytest.mark.parametrize("value", ["1", "0.5", "", True, False, [], {}, [1], {"value": 1}])
+    def test_non_number_is_invalid(self, definition, value):
+        result = validate_form(definition, {"n": value, "required_n": 1})
+        assert _errors(result) == {("n", "must be a number")}
+
+    def test_empty_string_is_invalid_when_required(self, definition):
+        assert _errors(validate_form(definition, {"required_n": ""})) == {("required_n", "must be a number")}
+
+    def test_none_is_valid_when_optional(self, definition):
+        assert validate_form(definition, {"n": None, "required_n": 1}).is_valid
+
+    def test_none_is_invalid_when_required(self, definition):
+        assert _errors(validate_form(definition, {"required_n": None})) == {("required_n", "is required")}
+
+    def test_non_number_is_invalid_when_required(self, definition):
+        assert _errors(validate_form(definition, {"required_n": "5"})) == {("required_n", "must be a number")}
+
+    def test_non_number_skips_bounds(self):
+        definition = {"properties": {"n": {"fieldType": "Number", "parameters": {"min": 4, "max": 10}}}}
+        # A string would otherwise be length-bounded; only the type error is reported.
+        assert _errors(validate_form(definition, {"n": "7"})) == {("n", "must be a number")}
+
+    def test_helper_built_fields(self):
+        class _Form(MdDatasetBaseModel):
+            n: float = number_field(ge=0, le=1)
+            r: float = numberrange_field(default=0.5, ge=0.0, le=1.0, interval=0.1)
+
+        definition = translate_payload(_Form.model_json_schema())
+        assert validate_form(definition, {"n": 1, "r": 0.5}).is_valid
+        assert validate_form(definition, {"n": 0.25, "r": 1}).is_valid
+        assert _errors(validate_form(definition, {"n": "1", "r": "0.5"})) == {
+            ("n", "must be a number"),
+            ("r", "must be a number"),
+        }
 
 
 class TestStringBounds:

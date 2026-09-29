@@ -23,12 +23,15 @@ runtime, without needing the original Pydantic model. It enforces:
 * ``parameters.options`` membership (static lists and dynamic ``{ref, cases}``),
 * ``parameters.min`` / ``parameters.max`` bounds (a number's value, a string's
   length, a list's item count),
+* value types for ``Boolean`` (a bool) and ``Number`` / ``NumberRange`` (an
+  int or float) fields,
 * the value/cross-field ``rules`` (``is_equal_to_value``, etc.),
 * dataset-selection fields against a supplied ``datasets`` list (see the
   ``datasets`` argument of :func:`validate_form`).
 
-``fieldType`` is a frontend widget hint rather than a reliable data type, so it
-is deliberately not used to type-check values. Rules that cannot be checked from
+Beyond the boolean and number fields above, ``fieldType`` is treated as a
+frontend widget hint rather than a reliable data type, so it is not used to
+type-check other values. Rules that cannot be checked from
 the data alone are skipped rather than reported, so the validator stays
 forward-compatible with new field/rule kinds.
 """
@@ -44,6 +47,10 @@ _DATASETS_FIELD_TYPE = FieldType.INTENSITY_INPUT_DATASET.value  # "Datasets"
 
 # fieldType of a boolean (checkbox/toggle) field.
 _BOOLEAN_FIELD_TYPE = FieldType.BOOLEAN.value  # "Boolean"
+
+# fieldTypes whose value must be a number (see field_helpers.number_field and
+# field_helpers.numberrange_field).
+_NUMBER_FIELD_TYPES = (FieldType.NUMBER.value, FieldType.NUMBER_RANGE.value)  # "Number", "NumberRange"
 
 # fieldType of a sample-metadata table (see field_helpers.experiment_design_field).
 _SAMPLE_METADATA_TABLE_FIELD_TYPE = FieldType.EXPERIMENT_DESIGN.value  # "SampleMetadataTable"
@@ -262,6 +269,14 @@ def _validate_field(name: str, spec: Dict[str, Any], data: Dict[str, Any]) -> Li
     # A field gated by an unmet `when` is inactive: skip every check for it.
     if when and not evaluate_when(when, data):
         return []
+
+    # Boolean and number fields must carry a value of that type. Only ``None``
+    # counts as unset for them: an empty string (or empty list/object) is the
+    # wrong type, not an absent value, so it fails even on an optional field.
+    if data.get(name) is not None:
+        type_error = _check_value_type(name, spec, data[name])
+        if type_error is not None:
+            return [type_error]
 
     rules = _normalize_rules(spec.get("rules"))
     present = name in data and not _is_absent(data.get(name))
@@ -503,6 +518,22 @@ def _check_required_columns(name: str, spec: Dict[str, Any], value: Any, data: D
         return []
     joined = ", ".join(repr(column) for column in missing)
     return [FieldError(name, f"table columns missing columns: {joined}")]
+
+
+def _check_value_type(name: str, spec: Dict[str, Any], value: Any) -> Optional[FieldError]:
+    """Ensure a Boolean field holds a bool and a Number/NumberRange field a number.
+
+    ``bool`` is a subclass of ``int`` in Python, so it is explicitly rejected as
+    a number.
+    """
+    field_type = spec.get("fieldType")
+    if field_type == _BOOLEAN_FIELD_TYPE and not isinstance(value, bool):
+        return FieldError(name, "must be a boolean")
+    if field_type in _NUMBER_FIELD_TYPES and (
+        not isinstance(value, (int, float)) or isinstance(value, bool)
+    ):
+        return FieldError(name, "must be a number")
+    return None
 
 
 def _check_table_shape(name: str, value: Any) -> Optional[FieldError]:
