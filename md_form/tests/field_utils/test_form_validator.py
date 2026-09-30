@@ -2157,6 +2157,81 @@ class TestConditionComparisonsRequired:
         assert not result.is_valid
         assert ("condition_comparisons", "is required") in _errors(result)
 
+    SHAPE_ERROR = "must be an object with a 'condition_comparison_pairs' list of [condition, condition] pairs"
+
+    def test_too_many_items(self):
+        data = {
+            "condition_comparisons": {
+                "condition_comparison_pairs": [["Heart", "Brain", "somethingElse"]],
+            }
+        }
+        result = validate_form(self.definition, data)
+        assert not result.is_valid
+        assert _errors(result) == {(
+            "condition_comparisons",
+            "comparison 1 must compare exactly 2 conditions, got 3: ['Heart', 'Brain', 'somethingElse']",
+        )}
+
+    def test_too_few_items(self):
+        data = {
+            "condition_comparisons": {
+                "condition_comparison_pairs": [["Heart"]],
+            }
+        }
+        result = validate_form(self.definition, data)
+        assert not result.is_valid
+        assert _errors(result) == {
+            ("condition_comparisons", "comparison 1 must compare exactly 2 conditions, got 1: ['Heart']"),
+        }
+
+    def test_each_bad_comparison_is_reported_by_number(self):
+        data = {
+            "condition_comparisons": {
+                "condition_comparison_pairs": [["Heart", "Brain"], ["Liver"], [], ["A", "B", "C"]],
+            }
+        }
+        assert _errors(validate_form(self.definition, data)) == {
+            ("condition_comparisons", "comparison 2 must compare exactly 2 conditions, got 1: ['Liver']"),
+            ("condition_comparisons", "comparison 3 must compare exactly 2 conditions, got 0: []"),
+            ("condition_comparisons", "comparison 4 must compare exactly 2 conditions, got 3: ['A', 'B', 'C']"),
+        }
+
+    def test_comparison_that_is_not_a_list(self):
+        data = {"condition_comparisons": {"condition_comparison_pairs": [["Heart", "Brain"], "Heart vs Brain"]}}
+        assert _errors(validate_form(self.definition, data)) == {
+            ("condition_comparisons", "comparison 2 must be a [condition, condition] pair, got 'Heart vs Brain'"),
+        }
+
+    @pytest.mark.parametrize(
+        "value",
+        [
+            [["Heart", "Brain"]],
+            {"pairs": [["Heart", "Brain"]]},
+            {"condition_comparison_pairs": "Heart vs Brain"},
+            {"condition_comparison_pairs": {"Heart": "Brain"}},
+            "Heart vs Brain",
+        ],
+    )
+    def test_wrong_shape(self, value):
+        assert _errors(validate_form(self.definition, {"condition_comparisons": value})) == {
+            ("condition_comparisons", self.SHAPE_ERROR),
+        }
+
+    def test_several_valid_pairs(self):
+        data = {"condition_comparisons": {"condition_comparison_pairs": [["Heart", "Brain"], ["Liver", "Brain"]]}}
+        assert validate_form(self.definition, data).is_valid
+
+    def test_optional_field_is_also_shape_checked(self):
+        class _Form(MdDatasetBaseModel):
+            condition_comparisons: Optional[dict] = condition_comparisons_field()
+
+        definition = translate_payload(_Form.model_json_schema())
+        assert validate_form(definition, {}).is_valid
+        assert validate_form(definition, {"condition_comparisons": {"condition_comparison_pairs": [[]]}}).is_valid
+        assert _errors(validate_form(definition, {"condition_comparisons": {"condition_comparison_pairs": [["A"]]}})) == {
+            ("condition_comparisons", "comparison 1 must compare exactly 2 conditions, got 1: ['A']"),
+        }
+
     def test_populated_is_valid(self):
             data = {
                 "condition_comparisons": {

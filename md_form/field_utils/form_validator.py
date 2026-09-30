@@ -28,6 +28,8 @@ runtime, without needing the original Pydantic model. It enforces:
   ``parameters.multiple`` is false) fields,
 * ``parameters.fieldDataType`` on any field (``int``, ``float``, ``boolean``,
   ``string``, ``array`` or ``object``),
+* ``PairwiseConditionComparisons`` values: an object whose
+  ``condition_comparison_pairs`` is a list of two-condition pairs,
 * the value/cross-field ``rules`` (``is_equal_to_value``, etc.),
 * dataset-selection fields against a supplied ``datasets`` list (see the
   ``datasets`` argument of :func:`validate_form`).
@@ -75,6 +77,9 @@ _FIELD_DATA_TYPE_CHECKS = {
 
 # fieldType of a sample-metadata table (see field_helpers.experiment_design_field).
 _SAMPLE_METADATA_TABLE_FIELD_TYPE = FieldType.EXPERIMENT_DESIGN.value  # "SampleMetadataTable"
+
+# fieldType of a condition-comparisons object (see field_helpers.condition_comparisons_field).
+_CONDITION_COMPARISONS_FIELD_TYPE = FieldType.CONDITION_COMPARISONS.value  # "PairwiseConditionComparisons"
 
 # fieldType of a control-variables list (see field_helpers.control_variables_field).
 _CONTROL_VARIABLES_FIELD_TYPE = FieldType.CONTROL_VARIABLES.value  # "PairwiseControlVariables"
@@ -330,6 +335,13 @@ def _validate_field(name: str, spec: Dict[str, Any], data: Dict[str, Any]) -> Li
         if shape_error is not None:
             return [shape_error]
 
+    # A condition-comparisons value must be an object holding a list of
+    # [condition, condition] pairs. Each malformed comparison is reported.
+    if spec.get("fieldType") == _CONDITION_COMPARISONS_FIELD_TYPE:
+        shape_errors = _check_condition_comparisons_shape(name, value)
+        if shape_errors:
+            return shape_errors
+
     errors: List[FieldError] = []
 
     errors.extend(_check_options(name, spec, value, data))
@@ -579,6 +591,28 @@ def _check_control_variables_shape(name: str, value: Any) -> Optional[FieldError
             name, "must be a list of control variables (objects with 'type' and 'column')"
         )
     return None
+
+
+def _check_condition_comparisons_shape(name: str, value: Any) -> List[FieldError]:
+    """Ensure a value is ``{"condition_comparison_pairs": [[a, b], ...]}``.
+
+    Every comparison must be a list of exactly two conditions. Comparisons are
+    numbered from 1 in the messages, as a user would count them.
+    """
+    pairs = value.get("condition_comparison_pairs") if isinstance(value, dict) else None
+    if not isinstance(pairs, list):
+        return [FieldError(
+            name, "must be an object with a 'condition_comparison_pairs' list of [condition, condition] pairs"
+        )]
+    errors: List[FieldError] = []
+    for number, pair in enumerate(pairs, start=1):
+        if not isinstance(pair, list):
+            errors.append(FieldError(name, f"comparison {number} must be a [condition, condition] pair, got {pair!r}"))
+        elif len(pair) != 2:
+            errors.append(FieldError(
+                name, f"comparison {number} must compare exactly 2 conditions, got {len(pair)}: {pair!r}"
+            ))
+    return errors
 
 
 def _rule_params(rule: Dict[str, Any]) -> Dict[str, Any]:
