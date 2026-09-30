@@ -1,5 +1,5 @@
 import pytest
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from typeguard import TypeCheckError
 from pydantic.fields import FieldInfo
 from field_utils.field_helpers import (
@@ -9,7 +9,7 @@ from field_utils.field_helpers import (
     intensity_input_dataset_field, intensity_input_datasets_field, datasets_field, entity_type_field,
     sample_metadata_value_field, sample_metadata_columns_field,
     sample_metadata_values_filter_field, entity_lists_field, databases_field,
-    reference_data_file_field, dataset_table_value_field
+    reference_data_file_field, dataset_table_value_field, FieldDataType
 )
 from field_utils.field_types import FieldType
 from field_utils.md_dataset_base_model import MdDatasetBaseModel
@@ -76,20 +76,20 @@ class TestNumberField:
 
     def test_number_field_basic(self):
         """Test number_field with no parameters"""
-        field = number_field()
+        field = number_field(field_data_type=FieldDataType.INT)
         
         assert isinstance(field, FieldInfo)
         assert field.json_schema_extra["fieldType"] == FieldType.NUMBER
 
     def test_number_field_with_default(self):
         """Test number_field with default value"""
-        field = number_field(default=42)
+        field = number_field(default=42, field_data_type=FieldDataType.INT)
         
         assert field.json_schema_extra["default"] == 42
 
     def test_number_field_with_ge(self):
         """Test number_field with ge parameter"""
-        field = number_field(ge=0)
+        field = number_field(ge=0, field_data_type=FieldDataType.INT)
         
         # ge is passed as a kwarg to Field, not as an attribute
         # We can't access it directly on FieldInfo, but it's used in Field creation
@@ -97,7 +97,7 @@ class TestNumberField:
 
     def test_number_field_with_le(self):
         """Test number_field with le parameter"""
-        field = number_field(le=100)
+        field = number_field(le=100, field_data_type=FieldDataType.INT)
         
         # le is passed as a kwarg to Field, not as an attribute
         # We can't access it directly on FieldInfo, but it's used in Field creation
@@ -105,7 +105,7 @@ class TestNumberField:
 
     def test_number_field_with_all_parameters(self):
         """Test number_field with all parameters"""
-        field = number_field(default=50, ge=0, le=100)
+        field = number_field(default=50, ge=0, le=100, field_data_type=FieldDataType.INT)
         
         assert field.json_schema_extra["default"] == 50
         # ge and le are passed as kwargs to Field, not as attributes
@@ -114,12 +114,41 @@ class TestNumberField:
 
     def test_number_field_with_float_values(self):
         """Test number_field with float values"""
-        field = number_field(default=3.14, ge=0.0, le=10.0)
+        field = number_field(default=3.14, ge=0.0, le=10.0, field_data_type=FieldDataType.FLOAT)
         
         assert field.json_schema_extra["default"] == 3.14
         # ge and le are passed as kwargs to Field, not as attributes
         # We can't access them directly on FieldInfo, but they're used in Field creation
         assert isinstance(field, FieldInfo)
+
+    def test_number_field_data_type_is_required(self):
+        with pytest.raises(TypeError, match="field_data_type"):
+            number_field(default=4)
+
+    def test_number_field_data_type_none_is_omitted(self):
+        field = number_field(default=4, field_data_type=None)
+        assert "parameters" not in field.json_schema_extra
+
+    @pytest.mark.parametrize("data_type, expected", [(FieldDataType.INT, "int"), (FieldDataType.FLOAT, "float")])
+    def test_number_field_data_type(self, data_type, expected):
+        field = number_field(field_data_type=data_type)
+        assert field.json_schema_extra["parameters"]["fieldDataType"] == expected
+
+    @pytest.mark.parametrize("data_type", [FieldDataType.STRING, FieldDataType.BOOLEAN, "float"])
+    def test_number_field_rejects_non_number_data_type(self, data_type):
+        with pytest.raises(TypeCheckError):
+            number_field(field_data_type=data_type)
+
+    def test_number_field_data_type_merges_with_parameters(self):
+        field = number_field(field_data_type=FieldDataType.FLOAT, parameters={"width": "small"})
+        assert field.json_schema_extra["parameters"] == {"fieldDataType": "float", "width": "small"}
+
+    def test_number_field_data_type_in_translated_payload(self):
+        class _Form(MdDatasetBaseModel):
+            tol: Optional[float] = number_field(field_data_type=FieldDataType.FLOAT)
+
+        definition = translate_payload(_Form.model_json_schema())
+        assert definition["tol"]["parameters"] == {"fieldDataType": "float"}
 
 
 class TestSelectField:
@@ -405,20 +434,20 @@ class TestNumberRangeField:
 
     def test_numberrange_field_basic(self):
         """Test numberrange_field with no parameters"""
-        field = numberrange_field()
+        field = numberrange_field(field_data_type=FieldDataType.FLOAT)
         
         assert isinstance(field, FieldInfo)
         assert field.json_schema_extra["fieldType"] == FieldType.NUMBER_RANGE
 
     def test_numberrange_field_with_default(self):
         """Test numberrange_field with default value"""
-        field = numberrange_field(default=5.0)
+        field = numberrange_field(default=5.0, field_data_type=FieldDataType.FLOAT)
         
         assert field.json_schema_extra["default"] == 5.0
 
     def test_numberrange_field_with_ge(self):
         """Test numberrange_field with ge parameter"""
-        field = numberrange_field(ge=0.0)
+        field = numberrange_field(ge=0.0, field_data_type=FieldDataType.FLOAT)
         
         # ge is passed as a kwarg to Field, not as an attribute
         # We can't access it directly on FieldInfo, but it's used in Field creation
@@ -426,7 +455,7 @@ class TestNumberRangeField:
 
     def test_numberrange_field_with_le(self):
         """Test numberrange_field with le parameter"""
-        field = numberrange_field(le=10.0)
+        field = numberrange_field(le=10.0, field_data_type=FieldDataType.FLOAT)
         
         # le is passed as a kwarg to Field, not as an attribute
         # We can't access it directly on FieldInfo, but it's used in Field creation
@@ -434,7 +463,7 @@ class TestNumberRangeField:
 
     def test_numberrange_field_with_interval(self):
         """Test numberrange_field with interval parameter"""
-        field = numberrange_field(interval=0.5)
+        field = numberrange_field(interval=0.5, field_data_type=FieldDataType.FLOAT)
         
         assert field.json_schema_extra["parameters"]["interval"] == 0.5
 
@@ -444,7 +473,8 @@ class TestNumberRangeField:
             default=5.0,
             ge=0.0,
             le=10.0,
-            interval=0.5
+            interval=0.5,
+            field_data_type=FieldDataType.FLOAT,
         )
         
         assert field.json_schema_extra["default"] == 5.0
@@ -452,6 +482,30 @@ class TestNumberRangeField:
         # We can't access them directly on FieldInfo, but they're used in Field creation
         assert isinstance(field, FieldInfo)
         assert field.json_schema_extra["parameters"]["interval"] == 0.5
+
+    def test_numberrange_field_data_type_is_required(self):
+        with pytest.raises(TypeError, match="field_data_type"):
+            numberrange_field(default=0.5)
+
+    @pytest.mark.parametrize("data_type, expected", [(FieldDataType.INT, "int"), (FieldDataType.FLOAT, "float")])
+    def test_numberrange_field_data_type(self, data_type, expected):
+        field = numberrange_field(field_data_type=data_type)
+        assert field.json_schema_extra["parameters"] == {"fieldDataType": expected}
+
+    def test_numberrange_field_data_type_merges_with_interval(self):
+        field = numberrange_field(interval=1, field_data_type=FieldDataType.INT, parameters={"width": "medium"})
+        assert field.json_schema_extra["parameters"] == {
+            "interval": 1, "fieldDataType": "int", "width": "medium",
+        }
+
+    def test_numberrange_field_data_type_none_is_omitted(self):
+        field = numberrange_field(interval=0.5, field_data_type=None)
+        assert field.json_schema_extra["parameters"] == {"interval": 0.5}
+
+    @pytest.mark.parametrize("data_type", [FieldDataType.STRING, FieldDataType.ARRAY, "int"])
+    def test_numberrange_field_rejects_non_number_data_type(self, data_type):
+        with pytest.raises(TypeCheckError):
+            numberrange_field(field_data_type=data_type)
 
 
 class TestIntensityInputDatasetField:
@@ -962,7 +1016,7 @@ class TestFieldHelpersIntegration:
         field_functions = [
             boolean_field(),
             string_field(),
-            number_field(),
+            number_field(field_data_type=FieldDataType.INT),
             select_field(),
             multiple_select_field(),
             experiment_design_field(),
@@ -970,7 +1024,7 @@ class TestFieldHelpersIntegration:
             condition_column_multi_select_field(),
             condition_comparisons_field(),
             control_variables_field(),
-            numberrange_field(),
+            numberrange_field(field_data_type=FieldDataType.FLOAT),
             intensity_input_dataset_field(),
             intensity_input_datasets_field(),
             datasets_field(),
@@ -993,7 +1047,7 @@ class TestFieldHelpersIntegration:
         # Test with None parameters
         boolean_none = boolean_field(default=None, label=None)
         string_none = string_field(default=None)
-        number_none = number_field(default=None, ge=None, le=None)
+        number_none = number_field(default=None, ge=None, le=None, field_data_type=FieldDataType.INT)
         
         # Should not include None values in json_schema_extra
         assert "default" not in boolean_none.json_schema_extra
@@ -1006,7 +1060,7 @@ class TestFieldHelpersIntegration:
         assert select_empty.json_schema_extra["parameters"]["options"] == []
         
         # Test with zero values
-        number_zero = number_field(default=0, ge=0, le=0)
+        number_zero = number_field(default=0, ge=0, le=0, field_data_type=FieldDataType.INT)
         assert number_zero.json_schema_extra["default"] == 0
         # ge and le are passed as kwargs to Field, not as attributes
         # We can't access them directly on FieldInfo, but they're used in Field creation
@@ -1027,7 +1081,7 @@ class TestFieldHelpersIntegration:
         assert string_field_instance.json_schema_extra["fieldType"] == FieldType.STRING
         
         # Number field should always have number type
-        number_field_instance = number_field()
+        number_field_instance = number_field(field_data_type=FieldDataType.INT)
         assert number_field_instance.json_schema_extra["fieldType"] == FieldType.NUMBER 
 
 class TestPydanticDefaults:
@@ -1040,12 +1094,12 @@ class TestPydanticDefaults:
 
     class _ImputationParams(MdDatasetBaseModel):
         imputation_methods: str = select_field(options=["mindet", "mnar", "knn", "constant"], default="mindet")
-        q: float = numberrange_field(default=0.01, ge=0.0, le=1.0, interval=0.01)
-        std_position: float = numberrange_field(default=1.8, ge=0.0, le=5.0, interval=0.1)
-        std_width: float = numberrange_field(default=0.3, ge=0.0, le=1.0, interval=0.1)
-        n_neighbors: int = numberrange_field(default=3, ge=1, le=20, interval=1)
-        constant_value: float = numberrange_field(default=0, ge=0.0, le=100.0, interval=1)
-        knn_tn_k: int = numberrange_field(default=5, ge=1, le=20, interval=1)
+        q: float = numberrange_field(default=0.01, ge=0.0, le=1.0, interval=0.01, field_data_type=FieldDataType.FLOAT)
+        std_position: float = numberrange_field(default=1.8, ge=0.0, le=5.0, interval=0.1, field_data_type=FieldDataType.FLOAT)
+        std_width: float = numberrange_field(default=0.3, ge=0.0, le=1.0, interval=0.1, field_data_type=FieldDataType.FLOAT)
+        n_neighbors: int = numberrange_field(default=3, ge=1, le=20, interval=1, field_data_type=FieldDataType.INT)
+        constant_value: float = numberrange_field(default=0, ge=0.0, le=100.0, interval=1, field_data_type=FieldDataType.FLOAT)
+        knn_tn_k: int = numberrange_field(default=5, ge=1, le=20, interval=1, field_data_type=FieldDataType.INT)
 
     def test_missing_fields_take_helper_defaults(self):
         params = self._ImputationParams()
@@ -1075,10 +1129,10 @@ class TestPydanticDefaults:
         [
             boolean_field(default=True),
             string_field(default="x"),
-            number_field(default=2),
+            number_field(default=2, field_data_type=FieldDataType.INT),
             select_field(options=["a", "b"], default="a"),
             multiple_select_field(options=["a", "b"], default=["a"]),
-            numberrange_field(default=0.5),
+            numberrange_field(default=0.5, field_data_type=FieldDataType.FLOAT),
             entity_type_field(default="protein"),
         ],
     )
@@ -1086,13 +1140,13 @@ class TestPydanticDefaults:
         assert field.default == field.json_schema_extra["default"]
 
     def test_field_without_default_still_defaults_to_none(self):
-        assert numberrange_field().default is None
-        assert number_field().default is None
+        assert numberrange_field(field_data_type=FieldDataType.FLOAT).default is None
+        assert number_field(field_data_type=FieldDataType.INT).default is None
 
     def test_required_field_with_default_stays_required(self):
         from field_utils import is_required
 
-        assert numberrange_field(default=0.5, rules=[is_required()]).is_required()
+        assert numberrange_field(default=0.5, rules=[is_required()], field_data_type=FieldDataType.FLOAT).is_required()
 
     def test_json_schema_default_unchanged(self):
         schema = translate_payload(self._ImputationParams.model_json_schema())

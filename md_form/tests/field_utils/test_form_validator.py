@@ -24,6 +24,7 @@ from field_utils import (
     numberrange_field,
     select_field,
 )
+from field_utils.field_helpers import FieldDataType
 from field_utils.when import When
 from translate_payload import translate_payload
 
@@ -320,8 +321,8 @@ class TestNumberType:
         # Regression: an unset soft_power sent by the UI as null failed with
         # "must be a number".
         class _Form(MdDatasetBaseModel):
-            soft_power: Optional[int] = number_field(default=None, ge=1, le=30)
-            top_variance_fraction: Optional[float] = numberrange_field(default=0.25, ge=0.0, le=1.0)
+            soft_power: Optional[int] = number_field(default=None, ge=1, le=30, field_data_type=FieldDataType.INT)
+            top_variance_fraction: Optional[float] = numberrange_field(default=0.25, ge=0.0, le=1.0, field_data_type=FieldDataType.FLOAT)
 
         definition = translate_payload(_Form.model_json_schema())
         assert validate_form(definition, {"soft_power": None, "top_variance_fraction": 0.25}).is_valid
@@ -345,8 +346,8 @@ class TestNumberType:
 
     def test_helper_built_fields(self):
         class _Form(MdDatasetBaseModel):
-            n: float = number_field(ge=0, le=1)
-            r: float = numberrange_field(default=0.5, ge=0.0, le=1.0, interval=0.1)
+            n: float = number_field(ge=0, le=1, field_data_type=FieldDataType.FLOAT)
+            r: float = numberrange_field(default=0.5, ge=0.0, le=1.0, interval=0.1, field_data_type=FieldDataType.FLOAT)
 
         definition = translate_payload(_Form.model_json_schema())
         assert validate_form(definition, {"n": 1, "r": 0.5}).is_valid
@@ -355,6 +356,175 @@ class TestNumberType:
             ("n", "must be a number"),
             ("r", "must be a number"),
         }
+
+
+class TestFieldDataType:
+    """``parameters.fieldDataType``, when present, fixes the value's type.
+
+    * ``"int"``: an int (not a float, even a whole one like ``5.0``).
+    * ``"float"``: an int or a float (JSON sends ``1.0`` as ``1``).
+    * ``"boolean"``: a bool.
+    * ``"string"``: a str.
+    * ``"array"``: a list (items are not checked).
+    * ``"object"``: a dict (values are not checked).
+
+    It applies whatever the ``fieldType``. ``None`` follows the usual presence
+    rules, and an unrecognised ``fieldDataType`` is ignored.
+    """
+
+    @staticmethod
+    def _definition(data_type, field_type="Number", **extra):
+        return {
+            "properties": {
+                "v": {"fieldType": field_type, "parameters": {"fieldDataType": data_type}, **extra},
+            }
+        }
+
+    @pytest.mark.parametrize("value", [0, 5, -3, 10**12])
+    def test_int_accepts_int(self, value):
+        assert validate_form(self._definition("int"), {"v": value}).is_valid
+
+    @pytest.mark.parametrize("value", [5.5, 5.0, -0.1])
+    def test_int_rejects_float(self, value):
+        assert _errors(validate_form(self._definition("int"), {"v": value})) == {("v", "must be an int")}
+
+    @pytest.mark.parametrize("value", [0.5, 5.0, 5, -3])
+    def test_float_accepts_int_or_float(self, value):
+        assert validate_form(self._definition("float"), {"v": value}).is_valid
+
+    @pytest.mark.parametrize("data_type", ["int", "float"])
+    @pytest.mark.parametrize("value", ["5", True, [5]])
+    def test_non_number_on_number_field_reports_number_error(self, data_type, value):
+        # The Number fieldType check runs first, so the error is the same as
+        # without fieldDataType.
+        assert _errors(validate_form(self._definition(data_type), {"v": value})) == {("v", "must be a number")}
+
+    @pytest.mark.parametrize("value", ["5", True, 5.5])
+    def test_int_on_string_field(self, value):
+        result = validate_form(self._definition("int", field_type="String"), {"v": value})
+        assert _errors(result) == {("v", "must be an int")}
+
+    @pytest.mark.parametrize("value", ["0.5", False])
+    def test_float_on_string_field(self, value):
+        result = validate_form(self._definition("float", field_type="String"), {"v": value})
+        assert _errors(result) == {("v", "must be a float")}
+
+    def test_boolean(self):
+        definition = self._definition("boolean", field_type="String")
+        assert validate_form(definition, {"v": True}).is_valid
+        assert _errors(validate_form(definition, {"v": "true"})) == {("v", "must be a boolean")}
+        assert _errors(validate_form(definition, {"v": 1})) == {("v", "must be a boolean")}
+
+    def test_string(self):
+        definition = self._definition("string", field_type="Number")
+        assert validate_form(self._definition("string", field_type="String"), {"v": "x"}).is_valid
+        # A Number field declared as a string still fails the Number check first.
+        assert _errors(validate_form(definition, {"v": "x"})) == {("v", "must be a number")}
+        assert _errors(validate_form(self._definition("string", field_type="String"), {"v": 5})) == {
+            ("v", "must be a string")
+        }
+
+    @pytest.mark.parametrize("value", [["a"], [1, 2], [{"a": 1}], [None, "x"], [[1], [2]]])
+    def test_array_accepts_list(self, value):
+        assert validate_form(self._definition("array", field_type="Multiple"), {"v": value}).is_valid
+
+    @pytest.mark.parametrize("value", ["a", "", 1, 0.5, True, {"a": 1}, {}, ("a",)])
+    def test_array_rejects_non_list(self, value):
+        result = validate_form(self._definition("array", field_type="Multiple"), {"v": value})
+        assert _errors(result) == {("v", "must be an array")}
+
+    def test_empty_array_follows_presence_rules(self):
+        # [] is the right type but carries no value, so it only fails when required.
+        assert validate_form(self._definition("array", field_type="Multiple"), {"v": []}).is_valid
+        required = self._definition("array", field_type="Multiple", rules=[{"name": "is_required"}])
+        assert _errors(validate_form(required, {"v": []})) == {("v", "is required")}
+
+    def test_array_bounds_still_apply(self):
+        definition = self._definition("array", field_type="Multiple")
+        definition["properties"]["v"]["parameters"].update({"min": 2, "max": 3})
+        assert validate_form(definition, {"v": ["a", "b"]}).is_valid
+        assert _errors(validate_form(definition, {"v": ["a"]})) == {("v", "must have at least 2 items")}
+        assert _errors(validate_form(definition, {"v": "ab"})) == {("v", "must be an array")}
+
+    @pytest.mark.parametrize("value", [{"a": 1}, {"sample_name": ["s1"]}, {"nested": {"x": [1]}}])
+    def test_object_accepts_dict(self, value):
+        assert validate_form(self._definition("object", field_type="String"), {"v": value}).is_valid
+
+    @pytest.mark.parametrize("value", ["a", "", "{}", 1, 0.5, False, ["a"], [], [{"a": 1}]])
+    def test_object_rejects_non_dict(self, value):
+        result = validate_form(self._definition("object", field_type="String"), {"v": value})
+        assert _errors(result) == {("v", "must be an object")}
+
+    def test_empty_object_follows_presence_rules(self):
+        assert validate_form(self._definition("object", field_type="String"), {"v": {}}).is_valid
+        required = self._definition("object", field_type="String", rules=[{"name": "is_required"}])
+        assert _errors(validate_form(required, {"v": {}})) == {("v", "is required")}
+
+    def test_object_with_only_empty_values_is_absent(self):
+        # Matches the existing presence rule: {"a": []} carries no value.
+        required = self._definition("object", field_type="String", rules=[{"name": "is_required"}])
+        assert _errors(validate_form(required, {"v": {"a": []}})) == {("v", "is required")}
+
+    @pytest.mark.parametrize("data_type", ["array", "object"])
+    def test_array_and_object_none_follows_presence_rules(self, data_type):
+        assert validate_form(self._definition(data_type, field_type="String"), {"v": None}).is_valid
+        required = self._definition(data_type, field_type="String", rules=[{"name": "is_required"}])
+        assert _errors(validate_form(required, {"v": None})) == {("v", "is required")}
+
+    def test_array_on_number_field_reports_number_error(self):
+        # The Number fieldType check still runs first.
+        assert _errors(validate_form(self._definition("array"), {"v": [1]})) == {("v", "must be a number")}
+
+    def test_object_on_sample_metadata_table(self):
+        definition = self._definition("object", field_type="SampleMetadataTable")
+        assert validate_form(definition, {"v": {"sample_name": ["s1", "s2"]}}).is_valid
+        assert _errors(validate_form(definition, {"v": [["s1"], ["s2"]]})) == {("v", "must be an object")}
+
+    def test_array_on_control_variables(self):
+        definition = self._definition("array", field_type="PairwiseControlVariables")
+        assert validate_form(definition, {"v": [{"type": "categorical", "column": "batch"}]}).is_valid
+        assert _errors(validate_form(definition, {"v": {"control_variables": []}})) == {
+            ("v", "must be an array")
+        }
+
+    def test_none_follows_presence_rules(self):
+        assert validate_form(self._definition("int"), {"v": None}).is_valid
+        assert validate_form(self._definition("int"), {}).is_valid
+        required = self._definition("int", rules=[{"name": "is_required"}])
+        assert _errors(validate_form(required, {"v": None})) == {("v", "is required")}
+
+    def test_none_rejected_when_number_has_default(self):
+        definition = self._definition("int", default=4)
+        assert _errors(validate_form(definition, {"v": None})) == {("v", "must be a number")}
+
+    def test_unknown_data_type_is_ignored(self):
+        assert validate_form(self._definition("decimal"), {"v": 5.5}).is_valid
+
+    def test_inactive_field_is_skipped(self):
+        definition = self._definition("int", when={"property": "mode", "equals": "on"})
+        assert validate_form(definition, {"mode": "off", "v": 5.5}).is_valid
+        assert _errors(validate_form(definition, {"mode": "on", "v": 5.5})) == {("v", "must be an int")}
+
+    def test_type_error_skips_bounds(self):
+        definition = self._definition("int")
+        definition["properties"]["v"]["parameters"].update({"min": 10})
+        assert _errors(validate_form(definition, {"v": 5.5})) == {("v", "must be an int")}
+
+    def test_helper_built_fields(self):
+        class _Form(MdDatasetBaseModel):
+            min_module_size: int = number_field(default=30, ge=2, field_data_type=FieldDataType.INT)
+            tol: Optional[float] = number_field(field_data_type=FieldDataType.FLOAT)
+            untyped: Optional[float] = number_field(field_data_type=None)
+
+        definition = translate_payload(_Form.model_json_schema())
+        assert validate_form(definition, {"min_module_size": 30, "tol": 1e-10}).is_valid
+        assert validate_form(definition, {"min_module_size": 30, "tol": 1}).is_valid
+        assert _errors(validate_form(definition, {"min_module_size": 30.5})) == {
+            ("min_module_size", "must be an int")
+        }
+        # Without field_data_type, any number is accepted.
+        assert validate_form(definition, {"min_module_size": 30, "untyped": 0.5}).is_valid
+        assert validate_form(definition, {"min_module_size": 30, "untyped": 5}).is_valid
 
 
 class TestDatasetTableValueType:

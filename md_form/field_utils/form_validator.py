@@ -26,6 +26,8 @@ runtime, without needing the original Pydantic model. It enforces:
 * value types for ``Boolean`` (a bool), ``Number`` / ``NumberRange`` (an
   int or float) and ``DatasetTableValue`` (a list, or a single value when
   ``parameters.multiple`` is false) fields,
+* ``parameters.fieldDataType`` on any field (``int``, ``float``, ``boolean``,
+  ``string``, ``array`` or ``object``),
 * the value/cross-field ``rules`` (``is_equal_to_value``, etc.),
 * dataset-selection fields against a supplied ``datasets`` list (see the
   ``datasets`` argument of :func:`validate_form`).
@@ -40,6 +42,7 @@ forward-compatible with new field/rule kinds.
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
+from .field_helpers import FieldDataType
 from .field_types import FieldType
 from .when import evaluate_when
 
@@ -56,6 +59,19 @@ _NUMBER_FIELD_TYPES = (FieldType.NUMBER.value, FieldType.NUMBER_RANGE.value)  # 
 # fieldType whose value must be a list, or a single value when single-select
 # (see field_helpers.dataset_table_value_field).
 _DATASET_TABLE_VALUE_FIELD_TYPE = FieldType.DATASET_TABLE_VALUE.value  # "DatasetTableValue"
+
+# Checks and error messages for ``parameters.fieldDataType``. ``bool`` is a
+# subclass of ``int`` in Python, so it is excluded from int and float.
+_FIELD_DATA_TYPE_CHECKS = {
+    FieldDataType.INT.value: (
+        lambda v: isinstance(v, int) and not isinstance(v, bool), "must be an int"),
+    FieldDataType.FLOAT.value: (
+        lambda v: isinstance(v, (int, float)) and not isinstance(v, bool), "must be a float"),
+    FieldDataType.BOOLEAN.value: (lambda v: isinstance(v, bool), "must be a boolean"),
+    FieldDataType.STRING.value: (lambda v: isinstance(v, str), "must be a string"),
+    FieldDataType.ARRAY.value: (lambda v: isinstance(v, list), "must be an array"),
+    FieldDataType.OBJECT.value: (lambda v: isinstance(v, dict), "must be an object"),
+}
 
 # fieldType of a sample-metadata table (see field_helpers.experiment_design_field).
 _SAMPLE_METADATA_TABLE_FIELD_TYPE = FieldType.EXPERIMENT_DESIGN.value  # "SampleMetadataTable"
@@ -510,6 +526,10 @@ def _check_value_type(name: str, spec: Dict[str, Any], value: Any) -> Optional[F
     and a DatasetTableValue field a list (or, when ``parameters.multiple`` is
     false, a single value rather than a list or object).
 
+    Then, on any field, a ``parameters.fieldDataType`` fixes the value's type
+    (see ``_FIELD_DATA_TYPE_CHECKS``). A ``float`` accepts ints too, since JSON
+    sends ``1.0`` as ``1``. Unrecognised data types are ignored.
+
     ``bool`` is a subclass of ``int`` in Python, so it is explicitly rejected as
     a number. ``None`` is rejected for a number field that has a non-``None``
     default, and otherwise left to the presence checks.
@@ -530,6 +550,11 @@ def _check_value_type(name: str, spec: Dict[str, Any], value: Any) -> Optional[F
             return FieldError(name, "must be a single value")
         if not single and not isinstance(value, list):
             return FieldError(name, "must be a list")
+    params = spec.get("parameters")
+    data_type = params.get("fieldDataType") if isinstance(params, dict) else None
+    check = _FIELD_DATA_TYPE_CHECKS.get(data_type)
+    if value is not None and check is not None and not check[0](value):
+        return FieldError(name, check[1])
     return None
 
 

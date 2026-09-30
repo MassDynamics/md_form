@@ -1,7 +1,16 @@
-from typing import Any, Dict, List, Optional, Union
+from enum import Enum
+from typing import Any, Dict, List, Literal, Optional, Union
 from .field_types import FieldType
 from .field_builder import field_builder
 from typeguard import typechecked
+
+class FieldDataType(str, Enum):
+    BOOLEAN = "boolean"
+    STRING = "string"
+    INT = "int"
+    FLOAT = "float"
+    OBJECT = "object"
+    ARRAY = "array"
 
 @field_builder(FieldType.BOOLEAN)
 @typechecked
@@ -38,15 +47,26 @@ def string_field(
 @field_builder(FieldType.NUMBER)
 @typechecked
 def number_field(
+    field_data_type: Optional[Literal[FieldDataType.INT, FieldDataType.FLOAT]],
     default: Optional[Union[int, float]] = None,
     ge: Optional[Union[int, float]] = None,
     le: Optional[Union[int, float]] = None,
 ) -> Dict[str, Any]:
-    """Create a number field."""
+    """Create a number field.
+
+    `field_data_type` must always be passed. It tells the frontend (and the
+    validator) whether the number is an int or a float and is emitted as
+    `parameters.fieldDataType`; pass None explicitly to accept either.
+    """
     result = {}
     
     if default is not None:
         result["json_schema_extra"] = {"default": default}
+    
+    if field_data_type is not None:
+        if "json_schema_extra" not in result:
+            result["json_schema_extra"] = {}
+        result["json_schema_extra"]["parameters"] = {"fieldDataType": FieldDataType(field_data_type).value}
     
     if ge is not None:
         result["ge"] = ge
@@ -213,12 +233,18 @@ def control_variables_field(
 @field_builder(FieldType.NUMBER_RANGE)
 @typechecked
 def numberrange_field(
-    default: Optional[float] = None,
-    ge: Optional[float] = None,
-    le: Optional[float] = None,
-    interval: Optional[float] = None,
+    field_data_type: Optional[Literal[FieldDataType.INT, FieldDataType.FLOAT]],
+    default: Optional[Union[int, float]] = None,
+    ge: Optional[Union[int, float]] = None,
+    le: Optional[Union[int, float]] = None,
+    interval: Optional[Union[int, float]] = None,
 ) -> Dict[str, Any]:
-    """Create a number range field."""
+    """Create a number range field.
+
+    `field_data_type` must always be passed. It tells the frontend (and the
+    validator) whether the number is an int or a float and is emitted as
+    `parameters.fieldDataType`; pass None explicitly to accept either.
+    """
     result = {}
     if default is not None:
         result["json_schema_extra"] = {"default": default}
@@ -230,6 +256,10 @@ def numberrange_field(
         if "json_schema_extra" not in result:
             result["json_schema_extra"] = {}
         result["json_schema_extra"]["parameters"] = {"interval": interval}
+    if field_data_type is not None:
+        if "json_schema_extra" not in result:
+            result["json_schema_extra"] = {}
+        result["json_schema_extra"].setdefault("parameters", {})["fieldDataType"] = FieldDataType(field_data_type).value
     return result
 
 @field_builder(FieldType.INTENSITY_INPUT_DATASET)

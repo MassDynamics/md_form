@@ -1,11 +1,11 @@
 from field_utils.md_dataset_base_model import MdDatasetBaseModel
-from md_form.field_utils import number_field, string_field
+from md_form.field_utils import FieldDataType, number_field, string_field
 
 
 class TestMdDatasetBaseModel:
     def test_simple_model_with_two_ints(self):
         class SimpleModel(MdDatasetBaseModel):
-            a: int = number_field()
+            a: int = number_field(field_data_type=FieldDataType.INT)
             b: str = string_field()
 
         schema = SimpleModel.model_json_schema()

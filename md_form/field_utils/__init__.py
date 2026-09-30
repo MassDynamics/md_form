@@ -25,6 +25,7 @@ from .field_helpers import (
     databases_field,
     reference_data_file_field,
     dataset_table_value_field,
+    FieldDataType,
 )
 
 # Import rules and rule builders
@@ -64,6 +65,7 @@ __all__ = [
     "boolean_field",
     "string_field", 
     "number_field",
+    "FieldDataType",
     "select_field",
     "multiple_select_field",
     "experiment_design_field",

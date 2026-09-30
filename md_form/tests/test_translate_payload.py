@@ -1,7 +1,7 @@
 import pytest
 import copy
 from prefect import flow
-from md_form.field_utils import string_field, number_field, MdDatasetBaseModel
+from md_form.field_utils import string_field, number_field, FieldDataType, MdDatasetBaseModel
 from translate_payload import (
     translate_payload,
     _resolve_refs,
@@ -1012,7 +1012,7 @@ class TestTranslatePayload:
             class TestType(MdDatasetBaseModel):
                 name: str = string_field(description="Test field")
                 status: str = string_field()
-                count: int = number_field()
+                count: int = number_field(field_data_type=FieldDataType.INT)
 
             @flow
             def some_thing(input_datasets:TestType, params: TestType, output_dataset_type: str):
