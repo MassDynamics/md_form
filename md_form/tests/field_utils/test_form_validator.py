@@ -2372,6 +2372,18 @@ class TestConditionComparisonsRequired:
             ("condition_comparisons", "comparison 1 must compare exactly 2 conditions, got 1: ['Heart']"),
         }
 
+    def test_duplicate_items(self):
+        data = {
+            "condition_comparisons": {
+                "condition_comparison_pairs": [["Heart", "Heart"]],
+            }
+        }
+        result = validate_form(self.definition, data)
+        assert not result.is_valid
+        assert _errors(result) == {
+            ("condition_comparisons", "comparison 1 must compare two different conditions, got ['Heart', 'Heart']"),
+        }
+
     def test_each_bad_comparison_is_reported_by_number(self):
         data = {
             "condition_comparisons": {

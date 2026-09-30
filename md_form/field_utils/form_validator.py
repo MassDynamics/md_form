@@ -666,7 +666,7 @@ def _check_control_variable_types(name: str, spec: Dict[str, Any], value: List[A
 def _check_condition_comparisons_shape(name: str, value: Any) -> List[FieldError]:
     """Ensure a value is ``{"condition_comparison_pairs": [[a, b], ...]}``.
 
-    Every comparison must be a list of exactly two conditions. Comparisons are
+    Every comparison must be a list of exactly two different conditions. Comparisons are
     numbered from 1 in the messages, as a user would count them.
     """
     pairs = value.get("condition_comparison_pairs") if isinstance(value, dict) else None
@@ -681,6 +681,10 @@ def _check_condition_comparisons_shape(name: str, value: Any) -> List[FieldError
         elif len(pair) != 2:
             errors.append(FieldError(
                 name, f"comparison {number} must compare exactly 2 conditions, got {len(pair)}: {pair!r}"
+            ))
+        elif pair[0] == pair[1]:
+            errors.append(FieldError(
+                name, f"comparison {number} must compare two different conditions, got {pair!r}"
             ))
     return errors
 
