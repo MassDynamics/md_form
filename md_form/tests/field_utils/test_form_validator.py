@@ -19,6 +19,7 @@ from field_utils import (
     control_variables_field,
     dataset_table_value_field,
     experiment_design_field,
+    has_multiple_column_values_from_field_in_table,
     has_unique_column_values_in_table,
     is_not_included_in_values_from_field,
     is_required,
@@ -2048,8 +2049,8 @@ class TestDifferentialExpressionExample:
         "filter_threshold_percentage": 0.5,
         "filter_valid_values_logic": "at least one condition",
         "experiment_design": {
-            "sample_name": ["Heart_1", "Heart_2"],
-            "condition": ["Heart", "Heart"],
+            "sample_name": ["Heart_1", "Brain_1ug_1"],
+            "condition": ["Heart", "Brain_1ug"],
         },
     }
 
@@ -2679,3 +2680,53 @@ class TestConditionColumnField:
             "condition_column",
             "must not be one of the values in 'control_variables'",
         ) in _errors(result)
+
+
+class TestHasMultipleColumnValuesFromFieldInTable:
+    """Each control variable's column must have at least 2 different values in the table."""
+
+    class _Form(MdDatasetBaseModel):
+        control_variables: list = control_variables_field()
+        experiment_design: dict = experiment_design_field(
+            rules=[
+                has_multiple_column_values_from_field_in_table(
+                    field="control_variables", values="control_variables[].column"
+                ),
+            ],
+        )
+
+    definition = translate_payload(_Form.model_json_schema())
+
+    @staticmethod
+    def _data(**columns):
+        return {
+            "control_variables": [{"type": "categorical", "column": column} for column in columns],
+            "experiment_design": {"sample_name": ["s1", "s2", "s3", "s4"], **columns},
+        }
+
+    def test_columns_with_several_values_are_valid(self):
+        data = self._data(batch=["b1", "b2", "b1", "b2"], sex=["F", "F", "M", "M"])
+        assert validate_form(self.definition, data).is_valid
+
+    def test_column_with_one_value_is_invalid(self):
+        data = self._data(batch=["b1", "b1", "b1", "b1"])
+        assert _errors(validate_form(self.definition, data)) == {
+            ("experiment_design", "column 'batch' must have at least 2 different values, got only 'b1'"),
+        }
+
+    def test_each_single_valued_column_is_reported(self):
+        data = self._data(batch=["b1", "b2", "b1", "b2"], sex=["F", "F", "F", "F"], site=["A", "A", "A", "A"])
+        assert _errors(validate_form(self.definition, data)) == {
+            ("experiment_design", "column 'sex' must have at least 2 different values, got only 'F'"),
+            ("experiment_design", "column 'site' must have at least 2 different values, got only 'A'"),
+        }
+
+    def test_no_control_variables_is_valid(self):
+        assert validate_form(self.definition, self._data()).is_valid
+
+    def test_missing_column_is_left_to_column_names_check(self):
+        data = self._data()
+        data["control_variables"] = [{"type": "categorical", "column": "batch"}]
+        assert _errors(validate_form(self.definition, data)) == {
+            ("experiment_design", "table columns missing columns: 'batch'"),
+        }

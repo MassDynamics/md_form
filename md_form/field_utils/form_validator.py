@@ -364,6 +364,9 @@ def _validate_field(name: str, spec: Dict[str, Any], data: Dict[str, Any]) -> Li
         ):
             errors.extend(_check_control_variable_columns(name, rule, value))
             continue
+        if rule.get("name") == "has_multiple_column_values_from_field_in_table":
+            errors.extend(_check_multiple_column_values(name, rule, value, data))
+            continue
         err = _check_rule(name, rule, value, data)
         if err is not None:
             errors.append(err)
@@ -515,6 +518,37 @@ def _resolve_column_ref(path: str, data: Dict[str, Any]) -> List[Any]:
     if isinstance(value, list):
         return [v for v in value if v is not None]
     return [value]
+
+
+def _check_multiple_column_values(
+    name: str, rule: Dict[str, Any], value: Any, data: Dict[str, Any]
+) -> List[FieldError]:
+    """Ensure each referenced column holds at least two different values.
+
+    ``parameters.values`` names the columns, resolved from ``data`` like a
+    ``columnNames`` ref: a field holding a column name (``"condition_column"``)
+    or an array projection (``"control_variables[].column"``). ``None`` and
+    ``""`` cells don't count as values. Columns missing from the table, and a
+    value that is not a table, are left to the other checks.
+    """
+    path = _rule_params(rule).get("values")
+    if not isinstance(path, str) or not isinstance(value, dict):
+        return []
+    errors: List[FieldError] = []
+    seen: set = set()
+    for column in _resolve_column_ref(path, data):
+        cells = value.get(column)
+        if column in seen or not isinstance(cells, list):
+            continue
+        seen.add(column)
+        distinct: List[Any] = []
+        for cell in cells:
+            if cell is not None and cell != "" and cell not in distinct:
+                distinct.append(cell)
+        if len(distinct) < 2:
+            found = f"only {distinct[0]!r}" if distinct else "none"
+            errors.append(FieldError(name, f"column {column!r} must have at least 2 different values, got {found}"))
+    return errors
 
 
 def _check_required_columns(name: str, spec: Dict[str, Any], value: Any, data: Dict[str, Any]) -> List[FieldError]:
