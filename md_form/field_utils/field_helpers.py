@@ -177,6 +177,7 @@ def condition_column_field() -> Dict[str, Any]:
     return {
         "json_schema_extra": {
             "parameters": {
+                "fieldDataType": FieldDataType.STRING,
                 "datasetsSearch": {"ref": "input_datasets"}
             }
         }

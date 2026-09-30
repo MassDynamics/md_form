@@ -1,6 +1,6 @@
 import json
 import os
-from typing import List, Optional
+from typing import List, Optional, Literal
 
 import pytest
 
@@ -9,6 +9,8 @@ from field_utils.form_validator import (
     is_valid_form,
     validate_form,
 )
+from pydantic import BaseModel
+
 from field_utils import (
     MdDatasetBaseModel,
     boolean_field,
@@ -24,6 +26,7 @@ from field_utils import (
     number_field,
     numberrange_field,
     select_field,
+    is_not_equal_to_value
 )
 from field_utils.field_helpers import FieldDataType
 from field_utils.when import When
@@ -2586,6 +2589,38 @@ class TestControlVariables:
             },
         }
         result = validate_form(self.definition, data)
+        assert not result.is_valid
+        assert (
+            "condition_column",
+            "must not be one of the values in 'control_variables'",
+        ) in _errors(result)
+
+class TestConditionColumnField:
+
+    class _Form(MdDatasetBaseModel):
+        control_variables: list = control_variables_field()
+        condition_column: str = condition_column_field(
+            name="Condition Column",
+            rules=[
+                is_not_equal_to_value("sample_name"),
+                is_not_included_in_values_from_field(field="control_variables", values="control_variables[].column"),
+                is_required(),
+            ],
+            parameters={"width": "large"},
+            group="Details",
+        )
+    def test_condition_column_field_is_valid(self):
+        data = {"condition_column": "condition"}
+        assert validate_form(self._Form.model_json_schema(), data).is_valid
+
+    @pytest.mark.parametrize("value", [123, [], -1, True, "sample_name"])
+    def test_condition_column_field_is_invalid(self, value):
+        data = {"condition_column": value}
+        assert not validate_form(self._Form.model_json_schema(), data).is_valid
+
+    def test_condition_column_field_is_invalid_when_value_is_in_control_variables(self):
+        data = {"condition_column": "condition", "control_variables": [{"type": "categorical", "column": "condition"}]}
+        result = validate_form(self._Form.model_json_schema(), data)
         assert not result.is_valid
         assert (
             "condition_column",
