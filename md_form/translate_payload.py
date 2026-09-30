@@ -180,6 +180,34 @@ def _rename_keys(schema: dict, key_mapping: dict) -> dict:
 
     return _rename(schema)
 
+def _promote_nullable_bounds(schema: dict, keys: list) -> dict:
+    """Lift bound constraints out of a nullable ``anyOf``.
+
+    Pydantic writes an ``Optional[float]`` field as
+    ``{"anyOf": [{"type": "number", "minimum": ...}, {"type": "null"}]}``, so
+    its ``ge``/``le`` sit inside the non-null branch rather than on the field,
+    and would be dropped along with ``anyOf``. When a node's ``anyOf`` is one
+    real branch plus ``{"type": "null"}`` branches, copy that branch's ``keys``
+    onto the node (without overriding keys the node already has), so they are
+    treated exactly as for the non-Optional type.
+    """
+    def _promote(node):
+        if isinstance(node, dict):
+            node = {k: _promote(v) for k, v in node.items()}
+            any_of = node.get("anyOf")
+            if isinstance(any_of, list):
+                non_null = [b for b in any_of if not (isinstance(b, dict) and b.get("type") == "null")]
+                if len(non_null) == 1 and len(non_null) < len(any_of) and isinstance(non_null[0], dict):
+                    for key in keys:
+                        if key in non_null[0] and key not in node:
+                            node[key] = non_null[0][key]
+            return node
+        if isinstance(node, list):
+            return [_promote(item) for item in node]
+        return node
+
+    return _promote(schema)
+
 def _resolve_one_of(schema: dict) -> dict:
     """
     Resolves `oneOf` fields with discriminator by flattening the referenced sub-properties
@@ -391,6 +419,7 @@ _pipeline = [
     _convert_enums_to_options,
     _resolve_one_of,
     _resolve_refs,
+    partial(_promote_nullable_bounds, keys=list(_key_mapping)),
     partial(_rename_keys, key_mapping=_key_mapping),
     partial(_move_to_parameters, keys_to_move=["options", "min", "max"]),
     _normalize_options_cases,

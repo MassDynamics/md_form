@@ -1,7 +1,16 @@
 import pytest
 import copy
+from typing import Optional
 from prefect import flow
-from md_form.field_utils import string_field, number_field, FieldDataType, MdDatasetBaseModel
+from pydantic import conlist
+from md_form.field_utils import (
+    string_field,
+    number_field,
+    numberrange_field,
+    multiple_select_field,
+    FieldDataType,
+    MdDatasetBaseModel,
+)
 from translate_payload import (
     translate_payload,
     _resolve_refs,
@@ -15,6 +24,7 @@ from translate_payload import (
     _remove_key_from_outer_layer,
     _cleanup_second_layer_keys,
     _normalize_options_cases,
+    _promote_nullable_bounds,
 )
 
 
@@ -361,6 +371,101 @@ class TestTranslatePayload:
             field1 = result["properties"]["field1"]
             assert "max" in field1
             assert "min" in field1
+
+    class TestPromoteNullableBounds:
+        """Bounds on an ``Optional[...]`` field live inside a nullable ``anyOf``."""
+
+        KEYS = ["minimum", "maximum", "minItems", "maxItems"]
+
+        def test_promotes_bounds_from_nullable_any_of(self):
+            schema = {
+                "anyOf": [{"type": "number", "minimum": 0.0, "maximum": 1.0}, {"type": "null"}],
+                "fieldType": "NumberRange",
+            }
+            result = _promote_nullable_bounds(schema, self.KEYS)
+            assert result["minimum"] == 0.0
+            assert result["maximum"] == 1.0
+
+        def test_promotes_list_item_bounds(self):
+            schema = {"anyOf": [{"type": "array", "minItems": 1, "maxItems": 3}, {"type": "null"}]}
+            result = _promote_nullable_bounds(schema, self.KEYS)
+            assert result["minItems"] == 1
+            assert result["maxItems"] == 3
+
+        def test_null_branch_may_come_first(self):
+            schema = {"anyOf": [{"type": "null"}, {"type": "integer", "minimum": 2}]}
+            assert _promote_nullable_bounds(schema, self.KEYS)["minimum"] == 2
+
+        def test_only_listed_keys_are_promoted(self):
+            schema = {"anyOf": [{"type": "number", "minimum": 0, "exclusiveMaximum": 5}, {"type": "null"}]}
+            result = _promote_nullable_bounds(schema, self.KEYS)
+            assert result["minimum"] == 0
+            assert "exclusiveMaximum" not in result
+            assert "type" not in result
+
+        def test_existing_keys_are_not_overridden(self):
+            schema = {
+                "minimum": 5,
+                "anyOf": [{"type": "number", "minimum": 0}, {"type": "null"}],
+            }
+            assert _promote_nullable_bounds(schema, self.KEYS)["minimum"] == 5
+
+        def test_union_of_several_real_types_is_left_alone(self):
+            # Ambiguous: which branch's bounds would apply?
+            schema = {
+                "anyOf": [
+                    {"type": "number", "minimum": 0},
+                    {"type": "string", "minLength": 1},
+                    {"type": "null"},
+                ]
+            }
+            assert "minimum" not in _promote_nullable_bounds(schema, self.KEYS)
+
+        def test_any_of_without_null_is_left_alone(self):
+            schema = {"anyOf": [{"type": "number", "minimum": 0}]}
+            assert "minimum" not in _promote_nullable_bounds(schema, self.KEYS)
+
+        def test_walks_nested_properties(self):
+            schema = {
+                "properties": {
+                    "q": {"anyOf": [{"type": "number", "minimum": 0.0, "maximum": 1.0}, {"type": "null"}]},
+                    "name": {"type": "string"},
+                }
+            }
+            result = _promote_nullable_bounds(schema, self.KEYS)
+            assert result["properties"]["q"]["minimum"] == 0.0
+            assert result["properties"]["q"]["maximum"] == 1.0
+            assert result["properties"]["name"] == {"type": "string"}
+
+        def test_does_not_mutate_input(self):
+            schema = {"anyOf": [{"type": "number", "minimum": 0}, {"type": "null"}]}
+            original = copy.deepcopy(schema)
+            _promote_nullable_bounds(schema, self.KEYS)
+            assert schema == original
+
+        def test_translate_payload_keeps_optional_bounds(self):
+            class _Params(MdDatasetBaseModel):
+                plain: float = numberrange_field(
+                    default=0.05, ge=0.0, le=1.0, interval=0.01, field_data_type=FieldDataType.FLOAT)
+                optional_range: Optional[float] = numberrange_field(
+                    default=0.05, ge=0.0, le=1.0, interval=0.01, field_data_type=FieldDataType.FLOAT)
+                optional_number: Optional[int] = number_field(
+                    default=None, ge=1, le=30, field_data_type=FieldDataType.INT)
+
+            result = translate_payload(_Params.model_json_schema())
+            assert result["plain"]["parameters"] == {
+                "fieldDataType": "float", "interval": 0.01, "min": 0.0, "max": 1.0,
+            }
+            assert result["optional_range"]["parameters"] == result["plain"]["parameters"]
+            assert result["optional_number"]["parameters"] == {"fieldDataType": "int", "min": 1, "max": 30}
+            assert "anyOf" not in result["optional_range"]
+
+        def test_translate_payload_keeps_optional_list_bounds(self):
+            class _Params(MdDatasetBaseModel):
+                picks: Optional[conlist(str, min_length=1, max_length=2)] = multiple_select_field()
+
+            result = translate_payload(_Params.model_json_schema())
+            assert result["picks"]["parameters"] == {"min": 1, "max": 2}
 
     class TestResolveOneOf:
         def test_resolve_one_of_basic(self, one_of_schema):

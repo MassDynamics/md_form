@@ -297,6 +297,42 @@ class TestNumberType:
         result = validate_form(definition, {"n": value, "required_n": 1})
         assert _errors(result) == {("n", "must be a number")}
 
+    def test_out_of_bounds(self):
+        class _Form(MdDatasetBaseModel):
+            out_side: Optional[float] = numberrange_field(default=0.05,
+                                                   ge=0.0,
+                                                   le=1.0,
+                                                   interval=0.01, field_data_type=FieldDataType.FLOAT)
+        definition = translate_payload(_Form.model_json_schema())
+        result = validate_form(definition, {"out_side": -1})
+        assert _errors(result) == {("out_side", "must be >= 0.0")}
+
+    class _BoundsForm(MdDatasetBaseModel):
+        """The same bounded field, typed with and without ``Optional``."""
+
+        range_plain: float = numberrange_field(
+            default=0.05, ge=0.0, le=1.0, interval=0.01, field_data_type=FieldDataType.FLOAT)
+        range_optional: Optional[float] = numberrange_field(
+            default=0.05, ge=0.0, le=1.0, interval=0.01, field_data_type=FieldDataType.FLOAT)
+        number_plain: float = number_field(default=0.05, ge=0.0, le=1.0, field_data_type=FieldDataType.FLOAT)
+        number_optional: Optional[float] = number_field(
+            default=0.05, ge=0.0, le=1.0, field_data_type=FieldDataType.FLOAT)
+
+    @pytest.mark.parametrize("field", ["range_plain", "range_optional", "number_plain", "number_optional"])
+    def test_ge_le_become_min_max_in_translated_payload(self, field):
+        # Pydantic nests ge/le inside anyOf for an Optional type, so translate_payload
+        # must still lift them out to parameters.min / parameters.max.
+        definition = translate_payload(self._BoundsForm.model_json_schema())
+        params = definition[field]["parameters"]
+        assert params.get("min") == 0.0
+        assert params.get("max") == 1.0
+
+    @pytest.mark.parametrize("field", ["range_plain", "range_optional", "number_plain", "number_optional"])
+    @pytest.mark.parametrize("value, message", [(-1, "must be >= 0.0"), (1.5, "must be <= 1.0")])
+    def test_ge_le_enforced_by_validator(self, field, value, message):
+        definition = translate_payload(self._BoundsForm.model_json_schema())
+        assert _errors(validate_form(definition, {field: value})) == {(field, message)}
+
     def test_empty_string_is_invalid_when_required(self, definition):
         assert _errors(validate_form(definition, {"required_n": ""})) == {("required_n", "must be a number")}
 
