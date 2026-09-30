@@ -21,6 +21,7 @@ runtime, without needing the original Pydantic model. It enforces:
 
 * required fields (``is_required`` rules, gated by ``when`` conditions),
 * ``parameters.options`` membership (static lists and dynamic ``{ref, cases}``),
+  with a ``String`` select taking one value and a ``Multiple`` select a list,
 * ``parameters.min`` / ``parameters.max`` bounds (a number's value, a string's
   length, a list's item count),
 * value types for ``Boolean`` (a bool), ``Number`` / ``NumberRange`` (an
@@ -74,6 +75,11 @@ _FIELD_DATA_TYPE_CHECKS = {
     FieldDataType.ARRAY.value: (lambda v: isinstance(v, list), "must be an array"),
     FieldDataType.OBJECT.value: (lambda v: isinstance(v, dict), "must be an object"),
 }
+
+# fieldTypes of single- and multiple-choice fields (see field_helpers.select_field
+# and field_helpers.multiple_select_field).
+_SINGLE_SELECT_FIELD_TYPE = FieldType.STRING.value  # "String"
+_MULTIPLE_SELECT_FIELD_TYPE = FieldType.MULTIPLE.value  # "Multiple"
 
 # fieldType of a sample-metadata table (see field_helpers.experiment_design_field).
 _SAMPLE_METADATA_TABLE_FIELD_TYPE = FieldType.EXPERIMENT_DESIGN.value  # "SampleMetadataTable"
@@ -347,6 +353,8 @@ def _validate_field(name: str, spec: Dict[str, Any], data: Dict[str, Any]) -> Li
     errors.extend(_check_options(name, spec, value, data))
     errors.extend(_check_bounds(name, spec, value))
     errors.extend(_check_required_columns(name, spec, value, data))
+    if spec.get("fieldType") == _CONTROL_VARIABLES_FIELD_TYPE:
+        errors.extend(_check_control_variable_types(name, spec, value))
     for rule in rules:
         err = _check_rule(name, rule, value, data)
         if err is not None:
@@ -406,6 +414,14 @@ def _check_options(name: str, spec: Dict[str, Any], value: Any, data: Dict[str, 
     params = spec.get("parameters")
     if not isinstance(params, dict) or "options" not in params:
         return []
+    # A single select takes one value and a multiple select a list, even when
+    # every submitted item is itself a valid option.
+    field_type = spec.get("fieldType")
+    if field_type == _SINGLE_SELECT_FIELD_TYPE and isinstance(value, list):
+        return [FieldError(name, "must be a single option, not a list")]
+    if field_type == _MULTIPLE_SELECT_FIELD_TYPE and not isinstance(value, list):
+        return [FieldError(name, "must be a list of options")]
+
     allowed = _allowed_option_values(params["options"], data)
     if allowed is None:
         return []
@@ -591,6 +607,28 @@ def _check_control_variables_shape(name: str, value: Any) -> Optional[FieldError
             name, "must be a list of control variables (objects with 'type' and 'column')"
         )
     return None
+
+
+def _check_control_variable_types(name: str, spec: Dict[str, Any], value: List[Any]) -> List[FieldError]:
+    """Ensure each control variable's ``type`` is one of ``parameters.radioOptions``.
+
+    Control variables are numbered from 1 in the messages, as a user would
+    count them. A definition without ``radioOptions`` imposes no restriction.
+    """
+    params = spec.get("parameters")
+    allowed = params.get("radioOptions") if isinstance(params, dict) else None
+    if not isinstance(allowed, list):
+        return []
+    choices = ", ".join(repr(option) for option in allowed)
+    return [
+        FieldError(
+            name,
+            f"control variable {number} ({item['column']!r}) has type {item['type']!r}; "
+            f"must be one of {choices}",
+        )
+        for number, item in enumerate(value, start=1)
+        if item["type"] not in allowed
+    ]
 
 
 def _check_condition_comparisons_shape(name: str, value: Any) -> List[FieldError]:

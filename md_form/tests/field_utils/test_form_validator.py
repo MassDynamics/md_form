@@ -1,6 +1,6 @@
 import json
 import os
-from typing import Optional
+from typing import List, Optional
 
 import pytest
 
@@ -20,6 +20,7 @@ from field_utils import (
     has_unique_column_values_in_table,
     is_not_included_in_values_from_field,
     is_required,
+    multiple_select_field,
     number_field,
     numberrange_field,
     select_field,
@@ -767,6 +768,153 @@ class TestMultipleOptions:
     def test_one_invalid(self):
         result = validate_form(self.definition, {"tags": ["a", "z"]})
         assert not result.is_valid
+
+
+class TestSelectField:
+    """A single-choice field built with ``select_field``."""
+
+    class _Form(MdDatasetBaseModel):
+        entity_type: str = select_field(options=["protein", "peptide"], default="protein")
+        required_method: str = select_field(options=["none", "ptm"], rules=[is_required()])
+        database: Optional[str] = select_field(
+            options={"ref": "entity_type", "cases": {"protein": ["reactome"], "peptide": ["phosphosite"]}},
+        )
+        filter_method: Optional[str] = select_field(
+            default=None,
+            parameters={"options": [
+                {"name": "None", "value": None},
+                {"name": "filter samples and entities", "value": "goodSamplesGenes"},
+            ]},
+        )
+        ptm_threshold_mode: Optional[str] = select_field(
+            options=["strict", "loose"],
+            when=When.equals("entity_type", "peptide"),
+        )
+
+    definition = translate_payload(_Form.model_json_schema())
+    base = {"required_method": "none"}
+
+    @pytest.mark.parametrize("value", ["protein", "peptide"])
+    def test_valid_option(self, value):
+        assert validate_form(self.definition, {**self.base, "entity_type": value}).is_valid
+
+    def test_invalid_option(self):
+        result = validate_form(self.definition, {**self.base, "entity_type": "mouse"})
+        assert _errors(result) == {("entity_type", "'mouse' is not one of the allowed options ['protein', 'peptide']")}
+
+    def test_options_are_case_sensitive(self):
+        result = validate_form(self.definition, {**self.base, "entity_type": "Protein"})
+        assert _errors(result) == {("entity_type", "'Protein' is not one of the allowed options ['protein', 'peptide']")}
+
+    def test_optional_field_with_default_may_be_left_out(self):
+        assert validate_form(self.definition, self.base).is_valid
+
+    def test_required_field_missing(self):
+        assert _errors(validate_form(self.definition, {})) == {("required_method", "is required")}
+
+    @pytest.mark.parametrize("value", [None, ""])
+    def test_required_field_empty(self, value):
+        assert _errors(validate_form(self.definition, {"required_method": value})) == {
+            ("required_method", "is required")
+        }
+
+    def test_required_field_invalid_option(self):
+        result = validate_form(self.definition, {"required_method": "all"})
+        assert _errors(result) == {("required_method", "'all' is not one of the allowed options ['none', 'ptm']")}
+
+    def test_none_option_is_selectable(self):
+        assert validate_form(self.definition, {**self.base, "filter_method": None}).is_valid
+        assert validate_form(self.definition, {**self.base, "filter_method": "goodSamplesGenes"}).is_valid
+
+    def test_dynamic_options_follow_ref(self):
+        assert validate_form(self.definition, {**self.base, "entity_type": "protein", "database": "reactome"}).is_valid
+        assert validate_form(
+            self.definition, {**self.base, "entity_type": "peptide", "database": "phosphosite"}
+        ).is_valid
+
+    def test_dynamic_option_from_other_case_is_invalid(self):
+        result = validate_form(self.definition, {**self.base, "entity_type": "protein", "database": "phosphosite"})
+        assert _errors(result) == {("database", "'phosphosite' is not one of the allowed options ['reactome']")}
+
+    def test_when_gated_field_skipped_when_inactive(self):
+        data = {**self.base, "entity_type": "protein", "ptm_threshold_mode": "anything"}
+        assert validate_form(self.definition, data).is_valid
+
+    def test_when_gated_field_checked_when_active(self):
+        data = {**self.base, "entity_type": "peptide", "ptm_threshold_mode": "anything"}
+        assert _errors(validate_form(self.definition, data)) == {
+            ("ptm_threshold_mode", "'anything' is not one of the allowed options ['strict', 'loose']")
+        }
+
+    def test_list_is_not_a_single_option(self):
+        # A single select takes one value, even if every item is a valid option.
+        result = validate_form(self.definition, {**self.base, "entity_type": ["protein"]})
+        assert _errors(result) == {("entity_type", "must be a single option, not a list")}
+
+
+class TestMultipleSelectField:
+    """A multiple-choice field built with ``multiple_select_field``."""
+
+    class _Form(MdDatasetBaseModel):
+        tags: Optional[List[str]] = multiple_select_field(options=["a", "b", "c"])
+        required_tags: List[str] = multiple_select_field(options=["x", "y"], rules=[is_required()])
+        defaulted_tags: List[str] = multiple_select_field(options=["a", "b"], default=["a"])
+        databases: Optional[List[str]] = multiple_select_field(
+            options={"ref": "entity", "cases": {"protein": ["reactome", "go"], "gene": ["kegg"]}},
+        )
+
+    definition = translate_payload(_Form.model_json_schema())
+    base = {"required_tags": ["x"]}
+
+    @pytest.mark.parametrize("value", [["a"], ["a", "b"], ["c", "a", "b"]])
+    def test_valid_selection(self, value):
+        assert validate_form(self.definition, {**self.base, "tags": value}).is_valid
+
+    def test_one_invalid_item(self):
+        result = validate_form(self.definition, {**self.base, "tags": ["a", "z"]})
+        assert _errors(result) == {("tags", "'z' is not one of the allowed options ['a', 'b', 'c']")}
+
+    def test_each_invalid_item_is_reported(self):
+        result = validate_form(self.definition, {**self.base, "tags": ["z", "a", "q"]})
+        assert _errors(result) == {
+            ("tags", "'z' is not one of the allowed options ['a', 'b', 'c']"),
+            ("tags", "'q' is not one of the allowed options ['a', 'b', 'c']"),
+        }
+
+    @pytest.mark.parametrize("value", [None, []])
+    def test_optional_empty_selection_is_valid(self, value):
+        assert validate_form(self.definition, {**self.base, "tags": value}).is_valid
+
+    def test_optional_field_may_be_left_out(self):
+        assert validate_form(self.definition, self.base).is_valid
+
+    @pytest.mark.parametrize("data", [{}, {"required_tags": None}, {"required_tags": []}])
+    def test_required_field_empty(self, data):
+        assert _errors(validate_form(self.definition, data)) == {("required_tags", "is required")}
+
+    def test_required_field_invalid_item(self):
+        result = validate_form(self.definition, {"required_tags": ["x", "nope"]})
+        assert _errors(result) == {("required_tags", "'nope' is not one of the allowed options ['x', 'y']")}
+
+    def test_defaulted_field_checks_submitted_items(self):
+        assert validate_form(self.definition, {**self.base, "defaulted_tags": ["a", "b"]}).is_valid
+        result = validate_form(self.definition, {**self.base, "defaulted_tags": ["c"]})
+        assert _errors(result) == {("defaulted_tags", "'c' is not one of the allowed options ['a', 'b']")}
+
+    def test_dynamic_options_follow_ref(self):
+        data = {**self.base, "entity": "protein", "databases": ["reactome", "go"]}
+        assert validate_form(self.definition, data).is_valid
+
+    def test_dynamic_option_from_other_case_is_invalid(self):
+        data = {**self.base, "entity": "gene", "databases": ["kegg", "go"]}
+        assert _errors(validate_form(self.definition, data)) == {
+            ("databases", "'go' is not one of the allowed options ['kegg']")
+        }
+
+    def test_string_is_not_a_selection(self):
+        # A multiple select takes a list, even when the string is a valid option.
+        result = validate_form(self.definition, {**self.base, "tags": "a"})
+        assert _errors(result) == {("tags", "must be a list of options")}
 
 
 class TestDynamicOptions:
@@ -2313,6 +2461,47 @@ class TestControlVariables:
     def test_required_populated_is_valid(self):
         data = {"control_variables": [{"type": "categorical", "column": "batch"}]}
         assert validate_form(self.required_definition, data).is_valid
+
+    def test_when_incorrect_option_given(self):
+        data = {"control_variables": [{"type": "something_else", "column": "batch"}]}
+        result = validate_form(self.required_definition, data)
+        assert not result.is_valid
+        assert _errors(result) == {(
+            "control_variables",
+            "control variable 1 ('batch') has type 'something_else'; must be one of 'categorical', 'numerical'",
+        )}
+
+    def test_each_incorrect_type_is_reported_by_number(self):
+        data = {"control_variables": [
+            {"type": "categorical", "column": "batch"},
+            {"type": "Categorical", "column": "sex"},
+            {"type": None, "column": "age"},
+        ]}
+        assert _errors(validate_form(self.required_definition, data)) == {
+            ("control_variables",
+             "control variable 2 ('sex') has type 'Categorical'; must be one of 'categorical', 'numerical'"),
+            ("control_variables",
+             "control variable 3 ('age') has type None; must be one of 'categorical', 'numerical'"),
+        }
+
+    def test_numerical_type_is_valid(self):
+        data = {"control_variables": [{"type": "numerical", "column": "age"}]}
+        assert validate_form(self.required_definition, data).is_valid
+
+    def test_types_come_from_radio_options(self):
+        class _Form(MdDatasetBaseModel):
+            control_variables: list = control_variables_field(radioOptions=["categorical"])
+
+        definition = translate_payload(_Form.model_json_schema())
+        data = {"control_variables": [{"type": "numerical", "column": "age"}]}
+        assert _errors(validate_form(definition, data)) == {
+            ("control_variables", "control variable 1 ('age') has type 'numerical'; must be one of 'categorical'"),
+        }
+
+    def test_no_radio_options_means_any_type(self):
+        definition = {"properties": {"control_variables": {"fieldType": "PairwiseControlVariables"}}}
+        data = {"control_variables": [{"type": "something_else", "column": "batch"}]}
+        assert validate_form(definition, data).is_valid
 
     def test_nested_object_is_invalid(self):
         data = {
