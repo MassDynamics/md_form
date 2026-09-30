@@ -356,6 +356,14 @@ def _validate_field(name: str, spec: Dict[str, Any], data: Dict[str, Any]) -> Li
     if spec.get("fieldType") == _CONTROL_VARIABLES_FIELD_TYPE:
         errors.extend(_check_control_variable_types(name, spec, value))
     for rule in rules:
+        # On a control-variables field, value rules apply to each control
+        # variable's column rather than to the list as a whole.
+        if (
+            spec.get("fieldType") == _CONTROL_VARIABLES_FIELD_TYPE
+            and rule.get("name") in _COLUMN_VALUE_RULES
+        ):
+            errors.extend(_check_control_variable_columns(name, rule, value))
+            continue
         err = _check_rule(name, rule, value, data)
         if err is not None:
             errors.append(err)
@@ -607,6 +615,30 @@ def _check_control_variables_shape(name: str, value: Any) -> Optional[FieldError
             name, "must be a list of control variables (objects with 'type' and 'column')"
         )
     return None
+
+
+# Value rules that, on a control-variables field, are checked against each
+# control variable's ``column``.
+_COLUMN_VALUE_RULES = ("is_equal_to_value", "is_not_equal_to_value")
+
+
+def _check_control_variable_columns(name: str, rule: Dict[str, Any], value: List[Any]) -> List[FieldError]:
+    """Apply ``is_equal_to_value`` / ``is_not_equal_to_value`` to each column.
+
+    E.g. ``is_not_equal_to_value("sample_name")`` forbids any control variable
+    from using the ``sample_name`` column. Control variables are numbered
+    from 1 in the messages, as a user would count them.
+    """
+    expected = _rule_params(rule).get("value")
+    must_equal = rule.get("name") == "is_equal_to_value"
+    errors: List[FieldError] = []
+    for number, item in enumerate(value, start=1):
+        column = item["column"]
+        if must_equal and column != expected:
+            errors.append(FieldError(name, f"control variable {number} must use column {expected!r}, not {column!r}"))
+        elif not must_equal and column == expected:
+            errors.append(FieldError(name, f"control variable {number} must not use column {expected!r}"))
+    return errors
 
 
 def _check_control_variable_types(name: str, spec: Dict[str, Any], value: List[Any]) -> List[FieldError]:

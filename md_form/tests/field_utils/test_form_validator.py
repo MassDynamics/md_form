@@ -26,7 +26,8 @@ from field_utils import (
     number_field,
     numberrange_field,
     select_field,
-    is_not_equal_to_value
+    is_equal_to_value,
+    is_not_equal_to_value,
 )
 from field_utils.field_helpers import FieldDataType
 from field_utils.when import When
@@ -2442,9 +2443,15 @@ class TestControlVariables:
 
     class _Form(MdDatasetBaseModel):
         condition_column: str = condition_column_field(
-            rules=[is_not_included_in_values_from_field("control_variables", "control_variables[].column")],
+            rules=[
+                is_not_included_in_values_from_field("control_variables", "control_variables[].column")
+            ],
         )
-        control_variables: list = control_variables_field()
+        control_variables: list = control_variables_field(
+            rules=[
+                is_not_equal_to_value("sample_name"),
+            ],
+        )
         experiment_design: dict = experiment_design_field()
 
     class _RequiredForm(MdDatasetBaseModel):
@@ -2464,6 +2471,40 @@ class TestControlVariables:
             },
         }
         assert validate_form(self.definition, data).is_valid
+
+    def test_cannot_be_sample_name(self):
+        data = {
+            "control_variables": [{"type": "categorical", "column": "sample_name"}],
+        }
+        form = validate_form(self.definition, data)
+        assert not form.is_valid
+        assert _errors(form) == {("control_variables", "control variable 1 must not use column 'sample_name'")}
+
+    def test_each_sample_name_column_is_reported_by_number(self):
+        data = {"control_variables": [
+            {"type": "categorical", "column": "batch"},
+            {"type": "numerical", "column": "sample_name"},
+        ]}
+        assert _errors(validate_form(self.definition, data)) == {
+            ("control_variables", "control variable 2 must not use column 'sample_name'"),
+        }
+
+    def test_other_columns_are_allowed(self):
+        data = {"control_variables": [{"type": "categorical", "column": "batch"}]}
+        assert validate_form(self.definition, data).is_valid
+
+    def test_is_equal_to_value_checks_each_column(self):
+        class _Form(MdDatasetBaseModel):
+            control_variables: list = control_variables_field(rules=[is_equal_to_value("batch")])
+
+        definition = translate_payload(_Form.model_json_schema())
+        data = {"control_variables": [
+            {"type": "categorical", "column": "batch"},
+            {"type": "categorical", "column": "sex"},
+        ]}
+        assert _errors(validate_form(definition, data)) == {
+            ("control_variables", "control variable 2 must use column 'batch', not 'sex'"),
+        }
 
     def test_categorical_and_numerical_is_valid(self):
         data = {
