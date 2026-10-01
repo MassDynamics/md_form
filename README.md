@@ -113,7 +113,13 @@ knowledge_bases = select_field(
 - `control_variables_field(default=None)`
 - `intensity_input_dataset_field()`
 - `intensity_input_datasets_field(entity_types=None, min=1, max=None)`
+  - `entity_types` is a list of `EntityType` values, e.g. `["protein", "gene"]`
 - `entity_type_field(default=None)`
+  - `default` is an `EntityType` value, e.g. `"protein"`
+- `EntityType` is `Literal["protein", "peptide", "gene", "metabolite", "ptm"]`. It is also taken by
+  `intensity_input_dataset_field`, `datasets_field` (`entity_types`), and by `entity_list_entity_ids_field`,
+  `entity_lists_field` (`type`) and `databases_field` (`entity_type`), which also accept a `{"ref": "<field>"}` dict.
+  Any other string is rejected.
 
 **Example:**
 ```python

@@ -1,5 +1,5 @@
 import pytest
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, get_args
 from typeguard import TypeCheckError
 from pydantic.fields import FieldInfo
 from field_utils.field_helpers import (
@@ -9,7 +9,8 @@ from field_utils.field_helpers import (
     intensity_input_dataset_field, intensity_input_datasets_field, datasets_field, entity_type_field,
     sample_metadata_value_field, sample_metadata_columns_field,
     sample_metadata_values_filter_field, entity_lists_field, databases_field,
-    reference_data_file_field, dataset_table_value_field, FieldDataType
+    reference_data_file_field, dataset_table_value_field, entity_list_entity_ids_field,
+    FieldDataType, EntityType
 )
 from field_utils.field_types import FieldType
 from field_utils.md_dataset_base_model import MdDatasetBaseModel
@@ -1152,3 +1153,63 @@ class TestPydanticDefaults:
         schema = translate_payload(self._ImputationParams.model_json_schema())
         assert schema["q"]["default"] == 0.01
         assert schema["constant_value"]["default"] == 0
+
+
+class TestEntityTypeHelpers:
+    """Helpers that take entity types accept only the EntityType values."""
+
+    @pytest.mark.parametrize(
+        "build",
+        [
+            lambda t: intensity_input_dataset_field(entity_types=[t]),
+            lambda t: intensity_input_datasets_field(entity_types=[t]),
+            lambda t: datasets_field(entity_types=[t]),
+            lambda t: entity_type_field(default=t),
+            lambda t: entity_list_entity_ids_field(type=t),
+            lambda t: databases_field(entity_type=t),
+            lambda t: entity_lists_field(type=t),
+        ],
+    )
+    @pytest.mark.parametrize("entity_type", list(get_args(EntityType)))
+    def test_every_entity_type_is_accepted(self, build, entity_type):
+        build(entity_type)
+
+    @pytest.mark.parametrize(
+        "build",
+        [
+            lambda t: intensity_input_dataset_field(entity_types=[t]),
+            lambda t: intensity_input_datasets_field(entity_types=[t]),
+            lambda t: datasets_field(entity_types=[t]),
+            lambda t: entity_type_field(default=t),
+            lambda t: entity_list_entity_ids_field(type=t),
+            lambda t: databases_field(entity_type=t),
+            lambda t: entity_lists_field(type=t),
+        ],
+    )
+    @pytest.mark.parametrize("entity_type", ["mouse", "Protein", "proteins", ""])
+    def test_unknown_entity_type_is_rejected(self, build, entity_type):
+        with pytest.raises(TypeCheckError):
+            build(entity_type)
+
+    @pytest.mark.parametrize(
+        "build, path",
+        [
+            (lambda t: entity_list_entity_ids_field(type=t), "type"),
+            (lambda t: databases_field(entity_type=t), "entityType"),
+            (lambda t: entity_lists_field(type=t), "type"),
+        ],
+    )
+    def test_ref_dict_passes_through(self, build, path):
+        assert build({"ref": "entity_type"}).json_schema_extra["parameters"][path] == {"ref": "entity_type"}
+
+    def test_entity_type_values(self):
+        assert get_args(EntityType) == ("protein", "peptide", "gene", "metabolite", "ptm")
+
+    def test_translated_payload(self):
+        class _Form(MdDatasetBaseModel):
+            entity_type: EntityType = entity_type_field(default="protein")
+            input_datasets: list = intensity_input_datasets_field(entity_types=["protein", "ptm"])
+
+        definition = translate_payload(_Form.model_json_schema())
+        assert definition["entity_type"]["default"] == "protein"
+        assert definition["input_datasets"]["parameters"]["entityTypes"] == ["protein", "ptm"]

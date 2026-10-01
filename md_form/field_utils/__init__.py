@@ -26,6 +26,7 @@ from .field_helpers import (
     reference_data_file_field,
     dataset_table_value_field,
     FieldDataType,
+    EntityType,
 )
 
 # Import rules and rule builders
@@ -66,6 +67,7 @@ __all__ = [
     "string_field", 
     "number_field",
     "FieldDataType",
+    "EntityType",
     "select_field",
     "multiple_select_field",
     "experiment_design_field",

@@ -12,6 +12,8 @@ class FieldDataType(str, Enum):
     OBJECT = "object"
     ARRAY = "array"
 
+EntityType = Literal["protein", "peptide", "gene", "metabolite", "ptm"]
+
 @field_builder(FieldType.BOOLEAN)
 @typechecked
 def boolean_field(
@@ -265,7 +267,7 @@ def numberrange_field(
 
 @field_builder(FieldType.INTENSITY_INPUT_DATASET)
 @typechecked
-def intensity_input_dataset_field(entity_types: Optional[List[str]] = None) -> Dict[str, Any]:
+def intensity_input_dataset_field(entity_types: Optional[List[EntityType]] = None) -> Dict[str, Any]:
     """Create an intensity input dataset field.
 
     `entity_types` filters by entity type (e.g. ["protein", "gene"]).
@@ -288,7 +290,7 @@ def intensity_input_dataset_field(entity_types: Optional[List[str]] = None) -> D
 
 @field_builder(FieldType.INTENSITY_INPUT_DATASET)
 @typechecked
-def intensity_input_datasets_field(entity_types: Optional[List[str]] = None, min: int = 1, max: Optional[int] = None) -> Dict[str, Any]:
+def intensity_input_datasets_field(entity_types: Optional[List[EntityType]] = None, min: int = 1, max: Optional[int] = None) -> Dict[str, Any]:
     """Create an intensity input datasets field (multi-select).
 
     `entity_types` filters by entity type (e.g. ["protein", "gene"]).
@@ -317,7 +319,7 @@ def intensity_input_datasets_field(entity_types: Optional[List[str]] = None, min
 def datasets_field(
     type: Optional[str] = None,
     multiple: Optional[bool] = None,
-    entity_types: Optional[List[str]] = None,
+    entity_types: Optional[List[EntityType]] = None,
 ) -> Dict[str, Any]:
     """Create a dataset search select field configurable for any dataset type.
 
@@ -343,9 +345,12 @@ def datasets_field(
 @field_builder(FieldType.ENTITY_TYPE)
 @typechecked
 def entity_type_field(
-    default: Optional[str] = None,
+    default: Optional[EntityType] = None,
 ) -> Dict[str, Any]:
-    """Create an entity type field."""
+    """Create an entity type field.
+
+    `default` is one of the EntityType values (e.g. "protein").
+    """
     result = {
         "json_schema_extra": {
             "parameters": {
@@ -383,12 +388,12 @@ def sample_metadata_value_field(
 @field_builder(FieldType.ENTITY_LIST_ENTITY_IDS)
 @typechecked
 def entity_list_entity_ids_field(
-    type: Optional[Union[str, Dict[str, Any]]] = None,
+    type: Optional[Union[EntityType, Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
     """Pick an entity list; the field's value is the array of entity_ids in that list.
 
     `type` is the entity type (e.g. "protein", "peptide", "gene") used to
-    filter the available lists. Pass a literal string, or a `{"ref": "<field>"}`
+    filter the available lists. Pass an EntityType value, or a `{"ref": "<field>"}`
     dict to bind to another field (commonly the entity_type field).
     """
     parameters: Dict[str, Any] = {}
@@ -467,7 +472,7 @@ def sample_metadata_values_filter_field(
 def databases_field(
     knowledge_bases: Optional[Union[List[str], Dict[str, Any]]] = None,
     allow_custom_databases: Optional[bool] = None,
-    entity_type: Optional[Union[str, Dict[str, Any]]] = None,
+    entity_type: Optional[Union[EntityType, Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
     """Create a databases field pairing a knowledge-base multi-select with optional custom analysis sets.
 
@@ -541,7 +546,7 @@ def dataset_table_value_field(
 @field_builder(FieldType.ENTITY_LISTS)
 @typechecked
 def entity_lists_field(
-    type: Optional[Union[str, Dict[str, Any]]] = None,
+    type: Optional[Union[EntityType, Dict[str, Any]]] = None,
     datasets_ref: Optional[str] = None,
     resolve_entities: Optional[bool] = None,
     sortable: Optional[bool] = None,
@@ -550,8 +555,8 @@ def entity_lists_field(
     """Pick one or more entity lists (the multi-list entity lists form).
 
     The field's value is an array of the selected lists. The entity type used
-    to filter the available lists comes from either `type` (a literal such as
-    "protein"/"peptide"/"gene", or a `{"ref": "<field>"}` dict) or `datasets_ref`
+    to filter the available lists comes from either `type` (an EntityType value
+    such as "protein"/"peptide"/"gene", or a `{"ref": "<field>"}` dict) or `datasets_ref`
     (the name of a datasets-search field, bound via `entityTypeFromDatasetsSearch`
     as the module instructions do).
 
