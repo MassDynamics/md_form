@@ -19,6 +19,8 @@ from field_utils import (
     control_variables_field,
     dataset_table_value_field,
     experiment_design_field,
+    intensity_input_dataset_field,
+    intensity_input_datasets_field,
     has_multiple_column_values_from_field_in_table,
     has_unique_column_values_in_table,
     is_not_included_in_values_from_field,
@@ -30,7 +32,7 @@ from field_utils import (
     is_equal_to_value,
     is_not_equal_to_value,
 )
-from field_utils.field_helpers import FieldDataType
+from field_utils.field_helpers import EntityType, FieldDataType, entity_type_field
 from field_utils.when import When
 from translate_payload import translate_payload
 
@@ -2730,3 +2732,229 @@ class TestHasMultipleColumnValuesFromFieldInTable:
         assert _errors(validate_form(self.definition, data)) == {
             ("experiment_design", "table columns missing columns: 'batch'"),
         }
+
+
+class TestDatasets:
+    """Every dataset selected in a dataset field must be in the provided datasets."""
+
+    class _Form(MdDatasetBaseModel):
+        entity_type: EntityType = entity_type_field()
+        input_datasets: list = intensity_input_dataset_field()
+
+
+    @pytest.fixture()
+    def definition(self):
+        return translate_payload(self._Form.model_json_schema())
+
+    datasets = [
+        {"id": "ds1", "name": "Dataset 1", "type": "INTENSITY", "state": "COMPLETED"},
+        {"id": "ds2", "name": "Dataset 2", "type": "INTENSITY", "state": "COMPLETED"},
+    ]
+
+    def test_selected_dataset_present_is_valid(self, definition):
+        assert validate_form(definition, {"input_datasets": ["ds1"]}, datasets=self.datasets).is_valid
+
+    def test_selected_dataset_dict_present_is_valid(self, definition):
+        data = {"input_datasets": [{"id": "ds2", "name": "Dataset 2"}]}
+        assert validate_form(definition, data, datasets=self.datasets).is_valid
+
+    def test_selected_dataset_missing_is_invalid(self, definition):
+        result = validate_form(definition, {"input_datasets": ["missing"]}, datasets=self.datasets)
+        assert _errors(result) == {
+            ("input_datasets", "dataset 'missing' is not in the provided datasets"),
+        }
+
+    def test_selected_dataset_dict_missing_is_invalid(self, definition):
+        data = {"input_datasets": [{"id": "missing", "name": "Dataset 1"}]}
+        assert _errors(validate_form(definition, data, datasets=self.datasets)) == {
+            ("input_datasets", "dataset 'missing' is not in the provided datasets"),
+        }
+
+    def test_selected_dataset_missing_from_empty_datasets_is_invalid(self, definition):
+        result = validate_form(definition, {"input_datasets": ["ds1"]}, datasets=[])
+        assert _errors(result) == {
+            ("input_datasets", "dataset 'ds1' is not in the provided datasets"),
+        }
+
+    def test_datasets_without_ids_are_ignored(self, definition):
+        datasets = [{"name": "Dataset 1", "type": "INTENSITY", "state": "COMPLETED"}, "ds1"]
+        result = validate_form(definition, {"input_datasets": ["ds1"]}, datasets=datasets)
+        assert _errors(result) == {
+            ("input_datasets", "dataset 'ds1' is not in the provided datasets"),
+        }
+
+    def test_datasets_list_must_be_provided(self, definition):
+        result = validate_form(definition, {"input_datasets": ["ds1"]})
+        assert _errors(result) == {
+            ("input_datasets", "a datasets list must be provided to validate this field"),
+        }
+
+    class TestValidatesEntityTypeMatchesInputDatasets:
+        """A dataset selected in the field an EntityType field searches must have that entity type."""
+
+        @staticmethod
+        def _dataset(ds_id="ds1", name="Dataset 1", **extra):
+            return {"id": ds_id, "name": name, "type": "INTENSITY", "state": "COMPLETED", **extra}
+
+        def test_valid(self, definition):
+            datasets = [self._dataset(entity_types=["protein"])]
+            result = validate_form(definition, {"input_datasets": ["ds1"], "entity_type": "protein"}, datasets=datasets)
+            assert result.is_valid
+
+        def test_missing_entity_type(self, definition):
+            datasets = [self._dataset(entity_types=["gene"])]
+            result = validate_form(definition, {"input_datasets": ["ds1"], "entity_type": "protein"}, datasets=datasets)
+            assert _errors(result) == {
+                ("input_datasets", "dataset 'Dataset 1' does not have entity type 'protein'"),
+            }
+
+        def test_one_of_several_entity_types_is_valid(self, definition):
+            datasets = [self._dataset(entity_types=["protein", "peptide", "ptm"])]
+            data = {"input_datasets": ["ds1"], "entity_type": "peptide"}
+            assert validate_form(definition, data, datasets=datasets).is_valid
+
+        def test_empty_entity_types_is_invalid(self, definition):
+            datasets = [self._dataset(entity_types=[])]
+            result = validate_form(definition, {"input_datasets": ["ds1"], "entity_type": "gene"}, datasets=datasets)
+            assert _errors(result) == {
+                ("input_datasets", "dataset 'Dataset 1' does not have entity type 'gene'"),
+            }
+
+        def test_entity_type_comparison_is_case_sensitive(self, definition):
+            datasets = [self._dataset(entity_types=["Protein"])]
+            result = validate_form(definition, {"input_datasets": ["ds1"], "entity_type": "protein"}, datasets=datasets)
+            assert _errors(result) == {
+                ("input_datasets", "dataset 'Dataset 1' does not have entity type 'protein'"),
+            }
+
+        def test_dict_selection_is_checked(self, definition):
+            datasets = [self._dataset(entity_types=["gene"])]
+            data = {"input_datasets": [{"id": "ds1", "name": "Dataset 1"}], "entity_type": "protein"}
+            assert _errors(validate_form(definition, data, datasets=datasets)) == {
+                ("input_datasets", "dataset 'Dataset 1' does not have entity type 'protein'"),
+            }
+
+        def test_error_names_dataset_by_id_when_it_has_no_name(self, definition):
+            datasets = [{"id": "ds1", "type": "INTENSITY", "state": "COMPLETED", "entity_types": ["gene"]}]
+            result = validate_form(definition, {"input_datasets": ["ds1"], "entity_type": "protein"}, datasets=datasets)
+            assert _errors(result) == {
+                ("input_datasets", "dataset 'ds1' does not have entity type 'protein'"),
+            }
+
+        def test_dataset_without_entity_types_is_not_checked(self, definition):
+            datasets = [self._dataset()]
+            data = {"input_datasets": ["ds1"], "entity_type": "protein"}
+            assert validate_form(definition, data, datasets=datasets).is_valid
+
+        def test_no_entity_type_selected_is_not_checked(self, definition):
+            datasets = [self._dataset(entity_types=["gene"])]
+            assert validate_form(definition, {"input_datasets": ["ds1"]}, datasets=datasets).is_valid
+
+        def test_null_entity_type_is_not_checked(self, definition):
+            datasets = [self._dataset(entity_types=["gene"])]
+            data = {"input_datasets": ["ds1"], "entity_type": None}
+            assert validate_form(definition, data, datasets=datasets).is_valid
+
+        def test_missing_dataset_reports_only_missing(self, definition):
+            result = validate_form(
+                definition, {"input_datasets": ["missing"], "entity_type": "protein"}, datasets=[],
+            )
+            assert _errors(result) == {
+                ("input_datasets", "dataset 'missing' is not in the provided datasets"),
+            }
+
+        def test_reported_alongside_type_and_state_errors(self, definition):
+            datasets = [self._dataset(type="PAIRWISE", state="RUNNING", entity_types=["gene"])]
+            result = validate_form(definition, {"input_datasets": ["ds1"], "entity_type": "protein"}, datasets=datasets)
+            assert _errors(result) == {
+                ("input_datasets", "dataset 'ds1' must be of type 'INTENSITY', not 'PAIRWISE'"),
+                ("input_datasets", "dataset 'ds1' must be in state 'COMPLETED', not 'RUNNING'"),
+                ("input_datasets", "dataset 'Dataset 1' does not have entity type 'protein'"),
+            }
+
+        def test_each_selected_dataset_is_checked(self):
+            class _Form(MdDatasetBaseModel):
+                entity_type: EntityType = entity_type_field()
+                input_datasets: list = intensity_input_datasets_field()
+
+            definition = translate_payload(_Form.model_json_schema())
+            datasets = [
+                self._dataset("ds1", "Dataset 1", entity_types=["protein", "gene"]),
+                self._dataset("ds2", "Dataset 2", entity_types=["gene"]),
+                self._dataset("ds3", "Dataset 3", entity_types=["peptide"]),
+            ]
+            data = {"input_datasets": ["ds1", "ds2", "ds3"], "entity_type": "protein"}
+            assert _errors(validate_form(definition, data, datasets=datasets)) == {
+                ("input_datasets", "dataset 'Dataset 2' does not have entity type 'protein'"),
+                ("input_datasets", "dataset 'Dataset 3' does not have entity type 'protein'"),
+            }
+
+        def test_only_the_referenced_dataset_field_is_checked(self):
+            class _Form(MdDatasetBaseModel):
+                entity_type: EntityType = entity_type_field()
+                input_datasets: list = intensity_input_dataset_field()
+                other_datasets: list = intensity_input_dataset_field()
+
+            definition = translate_payload(_Form.model_json_schema())
+            datasets = [
+                self._dataset("ds1", "Dataset 1", entity_types=["protein"]),
+                self._dataset("ds2", "Dataset 2", entity_types=["gene"]),
+            ]
+            data = {"input_datasets": ["ds1"], "other_datasets": ["ds2"], "entity_type": "protein"}
+            assert validate_form(definition, data, datasets=datasets).is_valid
+
+        def test_inactive_entity_type_field_is_not_checked(self):
+            definition = {
+                "properties": {
+                    "input_datasets": {"fieldType": "Datasets", "parameters": {"type": "INTENSITY"}},
+                    "use_entity_type": {"fieldType": "Boolean"},
+                    "entity_type": {
+                        "fieldType": "EntityType",
+                        "parameters": {"datasetsSearch": {"ref": "input_datasets"}},
+                        "when": {"property": "use_entity_type", "equals": True},
+                    },
+                }
+            }
+            datasets = [self._dataset(entity_types=["gene"])]
+            data = {"input_datasets": ["ds1"], "entity_type": "protein"}
+            assert validate_form(definition, {**data, "use_entity_type": False}, datasets=datasets).is_valid
+            assert _errors(validate_form(definition, {**data, "use_entity_type": True}, datasets=datasets)) == {
+                ("input_datasets", "dataset 'Dataset 1' does not have entity type 'protein'"),
+            }
+
+
+class TestValidatesEntityTypeField():
+
+    class _Form(MdDatasetBaseModel):
+        entity_type: EntityType = entity_type_field()
+
+    @pytest.fixture()
+    def definition(self):
+        return translate_payload(self._Form.model_json_schema())
+
+    _allowed = "['protein', 'peptide', 'gene', 'metabolite', 'ptm']"
+
+    @pytest.mark.parametrize("value", ["protein", "peptide", "gene", "metabolite", "ptm"])
+    def test_it_accepts_each_entity_type(self, definition, value):
+        assert validate_form(definition, {"entity_type": value}).is_valid
+
+    @pytest.mark.parametrize("value", ["Protein", "proteins", "mouse"])
+    def test_it_must_be_a_valid_entity_type(self, definition, value):
+        result = validate_form(definition, {"entity_type": value})
+        assert _errors(result) == {
+            ("entity_type", f"{value!r} is not one of the allowed options {self._allowed}"),
+        }
+
+    def test_it_must_not_be_a_list(self, definition):
+        result = validate_form(definition, {"entity_type": ["protein"]})
+        assert _errors(result) == {("entity_type", "must be a single option, not a list")}
+
+    def test_it_must_not_be_a_number(self, definition):
+        result = validate_form(definition, {"entity_type": 1})
+        assert _errors(result) == {
+            ("entity_type", f"1 is not one of the allowed options {self._allowed}"),
+        }
+
+    @pytest.mark.parametrize("data", [{}, {"entity_type": None}, {"entity_type": ""}])
+    def test_it_is_optional(self, definition, data):
+        assert validate_form(definition, data).is_valid

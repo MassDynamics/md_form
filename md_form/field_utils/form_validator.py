@@ -33,7 +33,9 @@ runtime, without needing the original Pydantic model. It enforces:
   ``condition_comparison_pairs`` is a list of two-condition pairs,
 * the value/cross-field ``rules`` (``is_equal_to_value``, etc.),
 * dataset-selection fields against a supplied ``datasets`` list (see the
-  ``datasets`` argument of :func:`validate_form`).
+  ``datasets`` argument of :func:`validate_form`), including that each
+  selected dataset has the entity type chosen in an ``EntityType`` field
+  pointing at it.
 
 Beyond the boolean, number and dataset-table-value fields above, ``fieldType`` is treated as a
 frontend widget hint rather than a reliable data type, so it is not used to
@@ -89,6 +91,9 @@ _CONDITION_COMPARISONS_FIELD_TYPE = FieldType.CONDITION_COMPARISONS.value  # "Pa
 
 # fieldType of a control-variables list (see field_helpers.control_variables_field).
 _CONTROL_VARIABLES_FIELD_TYPE = FieldType.CONTROL_VARIABLES.value  # "PairwiseControlVariables"
+
+# fieldType of an entity-type field (see field_helpers.entity_type_field).
+_ENTITY_TYPE_FIELD_TYPE = FieldType.ENTITY_TYPE.value  # "EntityType"
 
 # Only fully-processed datasets are selectable.
 _COMPLETED_STATE = "COMPLETED"
@@ -204,8 +209,11 @@ def _check_datasets(
     For every field whose ``fieldType`` is ``"Datasets"``:
     * if ``datasets`` is ``None`` the field cannot be validated -> error;
     * otherwise each selected dataset id in ``data`` must appear in ``datasets``,
-      match the field's required ``parameters.type`` (when set), and be in the
-      ``COMPLETED`` state.
+      match the field's required ``parameters.type`` (when set), be in the
+      ``COMPLETED`` state, and list the entity type chosen in any active
+      ``EntityType`` field whose ``parameters.datasetsSearch.ref`` names this
+      field among its ``entity_types`` (datasets without ``entity_types`` are
+      not checked).
     """
     errors: List[FieldError] = []
     dataset_fields = [(n, s) for n, s in fields.items() if s.get("fieldType") == _DATASETS_FIELD_TYPE]
@@ -225,6 +233,7 @@ def _check_datasets(
             continue
         params = spec.get("parameters") or {}
         required_type = params.get("type")
+        entity_types = _selected_entity_types(fields, data, name)
         for ds_id in _selected_dataset_ids(value):
             dataset = by_id.get(ds_id)
             if dataset is None:
@@ -240,7 +249,33 @@ def _check_datasets(
                     name,
                     f"dataset {ds_id!r} must be in state {_COMPLETED_STATE!r}, not {dataset.get('state')!r}",
                 ))
+            available = dataset.get("entity_types")
+            if isinstance(available, list):
+                for entity_type in entity_types:
+                    if entity_type not in available:
+                        errors.append(FieldError(
+                            name,
+                            f"dataset {dataset.get('name', ds_id)!r} does not have entity type {entity_type!r}",
+                        ))
     return errors
+
+
+def _selected_entity_types(fields: Dict[str, Any], data: Dict[str, Any], dataset_field: str) -> List[str]:
+    """Entity types chosen in active ``EntityType`` fields that search ``dataset_field``."""
+    entity_types: List[str] = []
+    for name, spec in fields.items():
+        if spec.get("fieldType") != _ENTITY_TYPE_FIELD_TYPE:
+            continue
+        search = (spec.get("parameters") or {}).get("datasetsSearch")
+        if not isinstance(search, dict) or search.get("ref") != dataset_field:
+            continue
+        when = spec.get("when")
+        if when and not evaluate_when(when, data):
+            continue
+        value = data.get(name)
+        if isinstance(value, str) and value not in entity_types:
+            entity_types.append(value)
+    return entity_types
 
 
 def _selected_dataset_ids(value: Any) -> List[Any]:
@@ -428,7 +463,7 @@ def _check_options(name: str, spec: Dict[str, Any], value: Any, data: Dict[str, 
     # A single select takes one value and a multiple select a list, even when
     # every submitted item is itself a valid option.
     field_type = spec.get("fieldType")
-    if field_type == _SINGLE_SELECT_FIELD_TYPE and isinstance(value, list):
+    if field_type in (_SINGLE_SELECT_FIELD_TYPE, _ENTITY_TYPE_FIELD_TYPE) and isinstance(value, list):
         return [FieldError(name, "must be a single option, not a list")]
     if field_type == _MULTIPLE_SELECT_FIELD_TYPE and not isinstance(value, list):
         return [FieldError(name, "must be a list of options")]
