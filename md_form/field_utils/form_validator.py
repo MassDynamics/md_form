@@ -399,6 +399,12 @@ def _validate_field(name: str, spec: Dict[str, Any], data: Dict[str, Any]) -> Li
         ):
             errors.extend(_check_control_variable_columns(name, rule, value))
             continue
+        if (
+            spec.get("fieldType") == _CONTROL_VARIABLES_FIELD_TYPE
+            and rule.get("name") == "is_not_included_in_values_from_field"
+        ):
+            errors.extend(_check_control_variable_columns_not_in_field(name, rule, value, data))
+            continue
         if rule.get("name") == "has_multiple_column_values_from_field_in_table":
             errors.extend(_check_multiple_column_values(name, rule, value, data))
             continue
@@ -708,6 +714,26 @@ def _check_control_variable_columns(name: str, rule: Dict[str, Any], value: List
         elif not must_equal and column == expected:
             errors.append(FieldError(name, f"control variable {number} must not use column {expected!r}"))
     return errors
+
+
+def _check_control_variable_columns_not_in_field(
+    name: str, rule: Dict[str, Any], value: List[Any], data: Dict[str, Any]
+) -> List[FieldError]:
+    """Apply ``is_not_included_in_values_from_field`` to each column.
+
+    E.g. ``is_not_included_in_values_from_field(field="design_variables",
+    values="design_variables[].column")`` forbids a control variable from
+    using a column already used in ``design_variables``. Control variables are
+    numbered from 1 in the messages, as a user would count them.
+    """
+    params = _rule_params(rule)
+    other = params.get("field")
+    used = _referenced_values(data, other, params.get("values"))
+    return [
+        FieldError(name, f"control variable {number} must not use column {item['column']!r}, already used in {other!r}")
+        for number, item in enumerate(value, start=1)
+        if item["column"] in used
+    ]
 
 
 def _check_control_variable_types(name: str, spec: Dict[str, Any], value: List[Any]) -> List[FieldError]:

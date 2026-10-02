@@ -2958,3 +2958,62 @@ class TestValidatesEntityTypeField():
     @pytest.mark.parametrize("data", [{}, {"entity_type": None}, {"entity_type": ""}])
     def test_it_is_optional(self, definition, data):
         assert validate_form(definition, data).is_valid
+
+
+class Test_is_not_included_in_values_from_field():
+
+    class _Form(MdDatasetBaseModel):
+        design_variables: Optional[list] = control_variables_field(
+            name="Design Variables",
+            radioOptions = ["categorical"],
+        )
+
+        batch_variables: Optional[list] = control_variables_field(
+            name="Batch Variables",
+            rules= [
+                is_not_included_in_values_from_field(field="design_variables", values="design_variables[].column"),
+            ],
+            radioOptions = ["categorical"],
+        )
+
+    @pytest.fixture()
+    def definition(self):
+        return translate_payload(self._Form.model_json_schema())
+
+    def test_is_not_included_in_values_from_field_invalid(self, definition):
+        values = {
+            "batch_variables": [
+            {
+                "type": "categorical",
+                "column": "batch"
+            }
+        ],
+            "design_variables": [
+                {
+                    "type": "categorical",
+                    "column": "batch"
+                }
+            ]}
+
+        result = validate_form(definition, values)
+        assert _errors(result) == {
+            ("batch_variables", "control variable 1 must not use column 'batch', already used in 'design_variables'"),
+        }
+
+    def test_is_not_included_in_values_from_field_valid(self, definition):
+        values = {
+            "batch_variables": [
+                {
+                    "type": "categorical",
+                    "column": "batch"
+                }
+            ],
+            "design_variables": [
+                {
+                    "type": "categorical",
+                    "column": "a_desgin"
+                }
+            ]}
+
+        result = validate_form(definition, values)
+        assert result.is_valid
