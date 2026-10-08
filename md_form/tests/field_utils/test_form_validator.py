@@ -2933,7 +2933,7 @@ class TestValidatesEntityTypeField():
     def definition(self):
         return translate_payload(self._Form.model_json_schema())
 
-    _allowed = "['protein', 'peptide', 'gene', 'metabolite', 'ptm']"
+    _allowed = "['protein', 'peptide', 'gene', 'metabolite', 'ptm', 'precursor']"
 
     @pytest.mark.parametrize("value", ["protein", "peptide", "gene", "metabolite", "ptm"])
     def test_it_accepts_each_entity_type(self, definition, value):

@@ -120,7 +120,7 @@ knowledge_bases = select_field(
   - The value is `{"fixed": False}` (fit to module) or `{"fixed": True, "width": <px>, "height": <px>}`,
     with width and height ints between 1 and 1000
   - The default is `{"fixed": False}`; pass both `width` and `height` to default to a fixed size
-- `EntityType` is `Literal["protein", "peptide", "gene", "metabolite", "ptm"]`. It is also taken by
+- `EntityType` is `Literal["protein", "peptide", "gene", "metabolite", "ptm", "precursor"]`. It is also taken by
   `intensity_input_dataset_field`, `datasets_field` (`entity_types`), and by `entity_list_entity_ids_field`,
   `entity_lists_field` (`type`) and `databases_field` (`entity_type`), which also accept a `{"ref": "<field>"}` dict.
   Any other string is rejected.
