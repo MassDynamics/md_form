@@ -12,7 +12,7 @@ class FieldDataType(str, Enum):
     OBJECT = "object"
     ARRAY = "array"
 
-EntityType = Literal["protein", "peptide", "gene", "metabolite", "ptm"]
+EntityType = Literal["protein", "peptide", "gene", "metabolite", "ptm", "precursor"]
 
 @field_builder(FieldType.BOOLEAN)
 @typechecked

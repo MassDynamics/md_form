@@ -1266,7 +1266,7 @@ class TestEntityTypeHelpers:
         assert build({"ref": "entity_type"}).json_schema_extra["parameters"][path] == {"ref": "entity_type"}
 
     def test_entity_type_values(self):
-        assert get_args(EntityType) == ("protein", "peptide", "gene", "metabolite", "ptm")
+        assert get_args(EntityType) == ("protein", "peptide", "gene", "metabolite", "ptm", "precursor")
 
     def test_translated_payload(self):
         class _Form(MdDatasetBaseModel):
