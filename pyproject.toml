@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "md_form"
-version = "0.17.0"
+version = "0.17.1"
 description = "A package for MDForm field helpers and payload translation utilities"
 authors = [
     {name = "Yan-sin Huang", email = "yansin@massdynamics.com"}
@@ -14,15 +14,15 @@ requires-python = ">=3.8"
 dependencies = [
     "pydantic>=2.10.4,<3",
     "typeguard>=4.0.0",
-    "pandas",
-    "prefect"
+    "pandas"
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest",
     "black",
-    "flake8"
+    "flake8",
+    "prefect"
 ]
 
 [tool.setuptools.packages.find]
