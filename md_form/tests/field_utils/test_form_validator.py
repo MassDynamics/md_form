@@ -29,6 +29,7 @@ from field_utils import (
     number_field,
     numberrange_field,
     plot_size_field,
+    radio_selection_field,
     select_field,
     is_equal_to_value,
     is_not_equal_to_value,
@@ -3085,4 +3086,50 @@ class TestPlotSize:
         assert _errors(result) == {
             ("plot_size", "'width' must be between 1 and 1000, got 0"),
             ("plot_size", "'height' must be an int, got 'big'"),
+        }
+
+
+class TestRadioSelectionField:
+    """A single-choice field built with ``radio_selection_field``."""
+
+    class _Form(MdDatasetBaseModel):
+        source: str = radio_selection_field(
+            options=["all", "selection", "list"], default="all", rules=[is_required()],
+        )
+        entity_type: Optional[str] = radio_selection_field(options=["protein", "peptide"], inline=True)
+        database: Optional[str] = radio_selection_field(
+            options={"ref": "entity_type", "cases": {"protein": ["reactome"], "peptide": ["phosphosite"]}},
+        )
+
+    @pytest.fixture()
+    def definition(self):
+        return translate_payload(self._Form.model_json_schema())
+
+    @pytest.mark.parametrize("value", ["all", "selection", "list"])
+    def test_valid_option(self, definition, value):
+        assert validate_form(definition, {"source": value}).is_valid
+
+    @pytest.mark.parametrize("value", ["mouse", "All", 1, True])
+    def test_invalid_option(self, definition, value):
+        assert _errors(validate_form(definition, {"source": value})) == {
+            ("source", f"{value!r} is not one of the allowed options ['all', 'selection', 'list']"),
+        }
+
+    def test_must_not_be_a_list(self, definition):
+        assert _errors(validate_form(definition, {"source": ["all"]})) == {
+            ("source", "must be a single option, not a list"),
+        }
+
+    @pytest.mark.parametrize("data", [{}, {"source": None}, {"source": ""}])
+    def test_required_field_missing(self, definition, data):
+        assert _errors(validate_form(definition, data)) == {("source", "is required")}
+
+    def test_optional_field_may_be_left_out(self, definition):
+        assert validate_form(definition, {"source": "all", "entity_type": None}).is_valid
+
+    def test_dynamic_options_follow_the_referenced_field(self, definition):
+        data = {"source": "all", "entity_type": "protein"}
+        assert validate_form(definition, {**data, "database": "reactome"}).is_valid
+        assert _errors(validate_form(definition, {**data, "database": "phosphosite"})) == {
+            ("database", "'phosphosite' is not one of the allowed options ['reactome']"),
         }

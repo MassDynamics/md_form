@@ -21,7 +21,8 @@ runtime, without needing the original Pydantic model. It enforces:
 
 * required fields (``is_required`` rules, gated by ``when`` conditions),
 * ``parameters.options`` membership (static lists and dynamic ``{ref, cases}``),
-  with a ``String`` select taking one value and a ``Multiple`` select a list,
+  with a ``String`` select or ``RadioSelectionField`` taking one value and a
+  ``Multiple`` select a list,
 * ``parameters.min`` / ``parameters.max`` bounds (a number's value, a string's
   length, a list's item count),
 * value types for ``Boolean`` (a bool), ``Number`` / ``NumberRange`` (an
@@ -80,9 +81,10 @@ _FIELD_DATA_TYPE_CHECKS = {
     FieldDataType.OBJECT.value: (lambda v: isinstance(v, dict), "must be an object"),
 }
 
-# fieldTypes of single- and multiple-choice fields (see field_helpers.select_field
-# and field_helpers.multiple_select_field).
+# fieldTypes of single- and multiple-choice fields (see field_helpers.select_field,
+# field_helpers.radio_selection_field and field_helpers.multiple_select_field).
 _SINGLE_SELECT_FIELD_TYPE = FieldType.STRING.value  # "String"
+_RADIO_SELECTION_FIELD_TYPE = FieldType.RADIO_SELECTION.value  # "RadioSelectionField"
 _MULTIPLE_SELECT_FIELD_TYPE = FieldType.MULTIPLE.value  # "Multiple"
 
 # fieldType of a sample-metadata table (see field_helpers.experiment_design_field).
@@ -481,7 +483,9 @@ def _check_options(name: str, spec: Dict[str, Any], value: Any, data: Dict[str, 
     # A single select takes one value and a multiple select a list, even when
     # every submitted item is itself a valid option.
     field_type = spec.get("fieldType")
-    if field_type in (_SINGLE_SELECT_FIELD_TYPE, _ENTITY_TYPE_FIELD_TYPE) and isinstance(value, list):
+    if field_type in (
+        _SINGLE_SELECT_FIELD_TYPE, _RADIO_SELECTION_FIELD_TYPE, _ENTITY_TYPE_FIELD_TYPE
+    ) and isinstance(value, list):
         return [FieldError(name, "must be a single option, not a list")]
     if field_type == _MULTIPLE_SELECT_FIELD_TYPE and not isinstance(value, list):
         return [FieldError(name, "must be a list of options")]

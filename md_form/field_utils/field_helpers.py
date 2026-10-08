@@ -138,6 +138,34 @@ def select_field(
     return result
 
 
+@field_builder(FieldType.RADIO_SELECTION)
+@typechecked
+def radio_selection_field(
+    default: Optional[str] = None,
+    options: Optional[Union[List[str], Dict[str, Any]]] = None,
+    inline: Optional[bool] = None,
+) -> Dict[str, Any]:
+    """Create a radio selection field: pick one of `options`, shown as radio buttons.
+
+    `options` works as in `select_field`. `inline` lays the radio buttons out
+    on one line.
+    """
+    result: Dict[str, Any] = {}
+
+    if default is not None:
+        result["json_schema_extra"] = {"default": default}
+
+    parameters: Dict[str, Any] = {}
+    if options is not None:
+        parameters["options"] = _normalize_options_arg(options)
+    if inline is not None:
+        parameters["inline"] = inline
+    if parameters:
+        result.setdefault("json_schema_extra", {})["parameters"] = parameters
+
+    return result
+
+
 @field_builder(FieldType.MULTIPLE)
 @typechecked
 def multiple_select_field(

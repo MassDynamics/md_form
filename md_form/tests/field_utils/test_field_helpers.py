@@ -10,7 +10,7 @@ from field_utils.field_helpers import (
     sample_metadata_value_field, sample_metadata_columns_field,
     sample_metadata_values_filter_field, entity_lists_field, databases_field,
     reference_data_file_field, dataset_table_value_field, entity_list_entity_ids_field,
-    plot_size_field, FieldDataType, EntityType
+    plot_size_field, radio_selection_field, FieldDataType, EntityType
 )
 from field_utils.field_types import FieldType
 from field_utils.md_dataset_base_model import MdDatasetBaseModel
@@ -256,6 +256,79 @@ class TestSelectField:
     def test_select_field_dynamic_options_missing_cases_raises(self):
         with pytest.raises(ValueError):
             select_field(options={"ref": "species"})
+
+
+class TestRadioSelectionField:
+    """Test cases for the radio_selection_field function"""
+
+    def test_radio_selection_field_basic(self):
+        field = radio_selection_field()
+
+        assert isinstance(field, FieldInfo)
+        assert field.json_schema_extra["fieldType"] == FieldType.RADIO_SELECTION
+        assert "parameters" not in field.json_schema_extra
+        assert field.default is None
+
+    def test_radio_selection_field_with_default(self):
+        field = radio_selection_field(default="all")
+
+        assert field.json_schema_extra["default"] == "all"
+        assert field.default == "all"
+
+    def test_radio_selection_field_with_options(self):
+        field = radio_selection_field(options=["all", "selection"])
+
+        assert field.json_schema_extra["parameters"] == {
+            "options": [{"name": "all", "value": "all"}, {"name": "selection", "value": "selection"}],
+        }
+
+    def test_radio_selection_field_with_dynamic_options(self):
+        field = radio_selection_field(options={"ref": "entity_type", "cases": {"protein": ["reactome"]}})
+
+        assert field.json_schema_extra["parameters"]["options"] == {
+            "ref": "entity_type",
+            "cases": {"protein": [{"name": "reactome", "value": "reactome"}]},
+        }
+
+    def test_radio_selection_field_with_inline(self):
+        field = radio_selection_field(options=["all"], inline=True)
+
+        assert field.json_schema_extra["parameters"] == {
+            "options": [{"name": "all", "value": "all"}],
+            "inline": True,
+        }
+
+    def test_radio_selection_field_inline_without_options(self):
+        assert radio_selection_field(inline=False).json_schema_extra["parameters"] == {"inline": False}
+
+    def test_radio_selection_field_translates(self):
+        class _Form(MdDatasetBaseModel):
+            source: str = radio_selection_field(
+                name="Table Source", group="Data", default="all",
+                options=["all", "selection", "list"], rules=[is_required()],
+            )
+
+        assert translate_payload(_Form.model_json_schema())["source"] == {
+            "default": "all",
+            "fieldType": "RadioSelectionField",
+            "group": "Data",
+            "md-field-order": 0,
+            "name": "Table Source",
+            "parameters": {"options": [
+                {"name": "all", "value": "all"},
+                {"name": "selection", "value": "selection"},
+                {"name": "list", "value": "list"},
+            ]},
+            "rules": [{"name": "is_required"}],
+        }
+
+    def test_radio_selection_field_rejects_non_string_default(self):
+        with pytest.raises(TypeCheckError):
+            radio_selection_field(default=1)
+
+    def test_radio_selection_field_rejects_non_bool_inline(self):
+        with pytest.raises(TypeCheckError):
+            radio_selection_field(inline="yes")
 
 
 class TestMultipleSelectField:

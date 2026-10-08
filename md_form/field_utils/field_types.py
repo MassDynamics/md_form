@@ -26,3 +26,4 @@ class FieldType(str, Enum):
     REFERENCE_DATA_FILE = "ReferenceDataFile"
     DATASET_TABLE_VALUE = "DatasetTableValue"
     PLOT_SIZE = "PlotSize"
+    RADIO_SELECTION = "RadioSelectionField"
