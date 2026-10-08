@@ -25,3 +25,4 @@ class FieldType(str, Enum):
     DATABASES = "Databases"
     REFERENCE_DATA_FILE = "ReferenceDataFile"
     DATASET_TABLE_VALUE = "DatasetTableValue"
+    PLOT_SIZE = "PlotSize"

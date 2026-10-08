@@ -10,11 +10,12 @@ from field_utils.field_helpers import (
     sample_metadata_value_field, sample_metadata_columns_field,
     sample_metadata_values_filter_field, entity_lists_field, databases_field,
     reference_data_file_field, dataset_table_value_field, entity_list_entity_ids_field,
-    FieldDataType, EntityType
+    plot_size_field, FieldDataType, EntityType
 )
 from field_utils.field_types import FieldType
 from field_utils.md_dataset_base_model import MdDatasetBaseModel
 from field_utils.form_validator import validate_form
+from field_utils.rules_builder import is_required
 from translate_payload import translate_payload
 
 
@@ -952,6 +953,68 @@ class TestReferenceDataFileField:
     def test_reference_data_file_field_rejects_non_list_accept(self):
         with pytest.raises(TypeCheckError):
             reference_data_file_field(accept=".csv")
+
+
+class TestPlotSizeField:
+    """Test cases for the plot_size_field function"""
+
+    def test_plot_size_field_basic(self):
+        field = plot_size_field()
+
+        assert isinstance(field, FieldInfo)
+        assert field.json_schema_extra["fieldType"] == FieldType.PLOT_SIZE
+        assert field.json_schema_extra["default"] == {"fixed": False}
+        assert field.default == {"fixed": False}
+        assert "parameters" not in field.json_schema_extra
+
+    def test_plot_size_field_with_fixed_default(self):
+        field = plot_size_field(width=400, height=300)
+
+        assert field.json_schema_extra["default"] == {"fixed": True, "width": 400, "height": 300}
+
+    def test_plot_size_field_with_common_params(self):
+        field = plot_size_field(name="Plot Size", group="Layout", rules=[is_required()])
+
+        assert field.json_schema_extra["name"] == "Plot Size"
+        assert field.json_schema_extra["group"] == "Layout"
+        assert field.json_schema_extra["rules"] == [{"name": "is_required"}]
+        assert field.json_schema_extra["default"] == {"fixed": False}
+
+    def test_plot_size_field_translates(self):
+        class _Form(MdDatasetBaseModel):
+            plot_size: dict = plot_size_field(name="Plot Size", group="Layout", rules=[is_required()])
+
+        assert translate_payload(_Form.model_json_schema())["plot_size"] == {
+            "default": {"fixed": False},
+            "fieldType": "PlotSize",
+            "group": "Layout",
+            "md-field-order": 0,
+            "name": "Plot Size",
+            "rules": [{"name": "is_required"}],
+        }
+
+    @pytest.mark.parametrize("kwargs", [{"width": 400}, {"height": 300}])
+    def test_plot_size_field_requires_width_and_height_together(self, kwargs):
+        with pytest.raises(ValueError, match="width and height must be passed together"):
+            plot_size_field(**kwargs)
+
+    @pytest.mark.parametrize("width, height, message", [
+        (0, 300, "width must be between 1 and 1000, got 0"),
+        (1001, 300, "width must be between 1 and 1000, got 1001"),
+        (400, 0, "height must be between 1 and 1000, got 0"),
+    ])
+    def test_plot_size_field_rejects_out_of_range_sizes(self, width, height, message):
+        with pytest.raises(ValueError, match=message):
+            plot_size_field(width=width, height=height)
+
+    def test_plot_size_field_accepts_boundary_sizes(self):
+        assert plot_size_field(width=1, height=1000).json_schema_extra["default"] == {
+            "fixed": True, "width": 1, "height": 1000,
+        }
+
+    def test_plot_size_field_rejects_non_int_sizes(self):
+        with pytest.raises(TypeCheckError):
+            plot_size_field(width=400.0, height=300)
 
 
 class TestDatasetTableValueField:

@@ -28,6 +28,7 @@ from field_utils import (
     multiple_select_field,
     number_field,
     numberrange_field,
+    plot_size_field,
     select_field,
     is_equal_to_value,
     is_not_equal_to_value,
@@ -3017,3 +3018,71 @@ class Test_is_not_included_in_values_from_field():
 
         result = validate_form(definition, values)
         assert result.is_valid
+
+
+class TestPlotSize:
+    """A PlotSize value is {"fixed": false} or {"fixed": true} with a width and height in pixels."""
+
+    class _Form(MdDatasetBaseModel):
+        plot_size: dict = plot_size_field(name="Plot Size", group="Layout", rules=[is_required()])
+
+    @pytest.fixture()
+    def definition(self):
+        return translate_payload(self._Form.model_json_schema())
+
+    @pytest.mark.parametrize("value", [
+        {"fixed": False},
+        {"fixed": True, "width": 400, "height": 300},
+        {"fixed": True, "width": 1, "height": 1000},
+        # Sizes left over from a previous fixed choice are ignored.
+        {"fixed": False, "width": "abc", "height": 0},
+    ])
+    def test_valid(self, definition, value):
+        assert validate_form(definition, {"plot_size": value}).is_valid
+
+    @pytest.mark.parametrize("data", [{}, {"plot_size": None}, {"plot_size": {}}])
+    def test_it_is_required(self, definition, data):
+        assert _errors(validate_form(definition, data)) == {("plot_size", "is required")}
+
+    @pytest.mark.parametrize("value", ["large", [{"fixed": False}], True, 300])
+    def test_it_must_be_an_object(self, definition, value):
+        assert _errors(validate_form(definition, {"plot_size": value})) == {
+            ("plot_size", "must be an object with a boolean 'fixed'"),
+        }
+
+    @pytest.mark.parametrize("value, got", [
+        ({"width": 400, "height": 300}, "None"),
+        ({"fixed": "true"}, "'true'"),
+        ({"fixed": 1}, "1"),
+    ])
+    def test_fixed_must_be_a_boolean(self, definition, value, got):
+        assert _errors(validate_form(definition, {"plot_size": value})) == {
+            ("plot_size", f"'fixed' must be a boolean, got {got}"),
+        }
+
+    def test_fixed_requires_width_and_height(self, definition):
+        assert _errors(validate_form(definition, {"plot_size": {"fixed": True}})) == {
+            ("plot_size", "'width' is required when 'fixed' is true"),
+            ("plot_size", "'height' is required when 'fixed' is true"),
+        }
+
+    def test_fixed_requires_height(self, definition):
+        result = validate_form(definition, {"plot_size": {"fixed": True, "width": 400}})
+        assert _errors(result) == {("plot_size", "'height' is required when 'fixed' is true")}
+
+    @pytest.mark.parametrize("width", ["400", 400.0, None, True])
+    def test_width_must_be_an_int(self, definition, width):
+        result = validate_form(definition, {"plot_size": {"fixed": True, "width": width, "height": 300}})
+        assert _errors(result) == {("plot_size", f"'width' must be an int, got {width!r}")}
+
+    @pytest.mark.parametrize("height", [0, -1, 1001])
+    def test_height_must_be_in_range(self, definition, height):
+        result = validate_form(definition, {"plot_size": {"fixed": True, "width": 400, "height": height}})
+        assert _errors(result) == {("plot_size", f"'height' must be between 1 and 1000, got {height}")}
+
+    def test_each_bad_size_is_reported(self, definition):
+        result = validate_form(definition, {"plot_size": {"fixed": True, "width": 0, "height": "big"}})
+        assert _errors(result) == {
+            ("plot_size", "'width' must be between 1 and 1000, got 0"),
+            ("plot_size", "'height' must be an int, got 'big'"),
+        }

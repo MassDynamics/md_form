@@ -31,6 +31,8 @@ runtime, without needing the original Pydantic model. It enforces:
   ``string``, ``array`` or ``object``),
 * ``PairwiseConditionComparisons`` values: an object whose
   ``condition_comparison_pairs`` is a list of two-condition pairs,
+* ``PlotSize`` values: ``{"fixed": false}``, or ``{"fixed": true}`` with an
+  int ``width`` and ``height`` between 1 and 1000 pixels,
 * the value/cross-field ``rules`` (``is_equal_to_value``, etc.),
 * dataset-selection fields against a supplied ``datasets`` list (see the
   ``datasets`` argument of :func:`validate_form`), including that each
@@ -47,7 +49,7 @@ forward-compatible with new field/rule kinds.
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
-from .field_helpers import FieldDataType
+from .field_helpers import PLOT_SIZE_MAX, PLOT_SIZE_MIN, FieldDataType
 from .field_types import FieldType
 from .when import evaluate_when
 
@@ -94,6 +96,9 @@ _CONTROL_VARIABLES_FIELD_TYPE = FieldType.CONTROL_VARIABLES.value  # "PairwiseCo
 
 # fieldType of an entity-type field (see field_helpers.entity_type_field).
 _ENTITY_TYPE_FIELD_TYPE = FieldType.ENTITY_TYPE.value  # "EntityType"
+
+# fieldType of a plot-size object (see field_helpers.plot_size_field).
+_PLOT_SIZE_FIELD_TYPE = FieldType.PLOT_SIZE.value  # "PlotSize"
 
 # Only fully-processed datasets are selectable.
 _COMPLETED_STATE = "COMPLETED"
@@ -380,6 +385,13 @@ def _validate_field(name: str, spec: Dict[str, Any], data: Dict[str, Any]) -> Li
     # [condition, condition] pairs. Each malformed comparison is reported.
     if spec.get("fieldType") == _CONDITION_COMPARISONS_FIELD_TYPE:
         shape_errors = _check_condition_comparisons_shape(name, value)
+        if shape_errors:
+            return shape_errors
+
+    # A plot-size value must be {"fixed": false}, or {"fixed": true} with a
+    # width and height in pixels. Each malformed part is reported.
+    if spec.get("fieldType") == _PLOT_SIZE_FIELD_TYPE:
+        shape_errors = _check_plot_size_shape(name, value)
         if shape_errors:
             return shape_errors
 
@@ -780,6 +792,35 @@ def _check_condition_comparisons_shape(name: str, value: Any) -> List[FieldError
         elif pair[0] == pair[1]:
             errors.append(FieldError(
                 name, f"comparison {number} must compare two different conditions, got {pair!r}"
+            ))
+    return errors
+
+
+def _check_plot_size_shape(name: str, value: Any) -> List[FieldError]:
+    """Ensure a value is ``{"fixed": false}`` or ``{"fixed": true, "width": w, "height": h}``.
+
+    A fixed size needs an int ``width`` and ``height`` between
+    ``PLOT_SIZE_MIN`` and ``PLOT_SIZE_MAX`` pixels. Sizes sent alongside
+    ``"fixed": false`` are ignored, as the plot fits the module.
+    """
+    if not isinstance(value, dict):
+        return [FieldError(name, "must be an object with a boolean 'fixed'")]
+    fixed = value.get("fixed")
+    if not isinstance(fixed, bool):
+        return [FieldError(name, f"'fixed' must be a boolean, got {fixed!r}")]
+    if not fixed:
+        return []
+    errors: List[FieldError] = []
+    for key in ("width", "height"):
+        if key not in value:
+            errors.append(FieldError(name, f"{key!r} is required when 'fixed' is true"))
+            continue
+        size = value[key]
+        if not isinstance(size, int) or isinstance(size, bool):
+            errors.append(FieldError(name, f"{key!r} must be an int, got {size!r}"))
+        elif not PLOT_SIZE_MIN <= size <= PLOT_SIZE_MAX:
+            errors.append(FieldError(
+                name, f"{key!r} must be between {PLOT_SIZE_MIN} and {PLOT_SIZE_MAX}, got {size}"
             ))
     return errors
 

@@ -583,3 +583,36 @@ def entity_lists_field(
     if parameters:
         result["json_schema_extra"]["parameters"] = parameters
     return result
+
+
+# Bounds, in pixels, of a fixed plot size's width and height.
+PLOT_SIZE_MIN = 1
+PLOT_SIZE_MAX = 1000
+
+
+@field_builder(FieldType.PLOT_SIZE)
+@typechecked
+def plot_size_field(
+    width: Optional[int] = None,
+    height: Optional[int] = None,
+) -> Dict[str, Any]:
+    """Create a plot size field.
+
+    The value is `{"fixed": False}` to fit the plot to the module, or
+    `{"fixed": True, "width": <px>, "height": <px>}` for a fixed size, with
+    width and height between 1 and 1000 pixels.
+
+    The default fits the plot to the module. Pass both `width` and `height`
+    to default to a fixed size instead.
+    """
+    if (width is None) != (height is None):
+        raise ValueError("width and height must be passed together")
+    if width is None:
+        default: Dict[str, Any] = {"fixed": False}
+    else:
+        for label, size in (("width", width), ("height", height)):
+            if not PLOT_SIZE_MIN <= size <= PLOT_SIZE_MAX:
+                raise ValueError(f"{label} must be between {PLOT_SIZE_MIN} and {PLOT_SIZE_MAX}, got {size}")
+        default = {"fixed": True, "width": width, "height": height}
+
+    return {"json_schema_extra": {"default": default}}
