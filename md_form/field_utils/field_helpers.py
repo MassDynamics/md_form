@@ -229,7 +229,14 @@ def condition_column_multi_select_field() -> Dict[str, Any]:
 
 @field_builder(FieldType.CONDITION_COMPARISONS)
 def condition_comparisons_field() -> Dict[str, Any]:
-    """Create a condition comparisons field."""
+    """Create a condition comparisons field.
+
+    Picks any number of comparisons from the conditions in this form's own
+    experiment design. The value is
+    `{"condition_comparison_pairs": [["C1", "C2"], ...]}`. Compare
+    `condition_comparison_field`, which picks one comparison already in a
+    dataset.
+    """
     return {
         "json_schema_extra": {
             "parameters": {
@@ -238,6 +245,30 @@ def condition_comparisons_field() -> Dict[str, Any]:
             }
         }
     }
+
+
+@field_builder(FieldType.CONDITION_COMPARISON)
+@typechecked
+def condition_comparison_field(
+    datasets_ref: str = "input_datasets",
+) -> Dict[str, Any]:
+    """Create a condition comparison field.
+
+    Picks one comparison from those already in the dataset chosen in the
+    `datasets_ref` field, and which way round to read it. The value is
+
+        {"comparison": {"condition_pair": "C7 - C5", "left": "C5", "right": "C7"}}
+
+    where `condition_pair` names the dataset's comparison and `left` and
+    `right` are its two conditions, each appearing in `condition_pair`, in
+    either order.
+
+    This differs from `condition_comparisons_field`
+    (`PairwiseConditionComparisons`), which picks any number of
+    comparisons, as `[condition, condition]` lists, from the conditions in
+    this form's own experiment design.
+    """
+    return {"json_schema_extra": {"parameters": {"datasetsSearch": {"ref": datasets_ref}}}}
 
 
 @field_builder(FieldType.CONTROL_VARIABLES)

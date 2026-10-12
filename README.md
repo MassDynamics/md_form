@@ -113,6 +113,15 @@ knowledge_bases = select_field(
 - `experiment_design_field()`
 - `condition_column_field()`
 - `condition_comparisons_field()`
+  - Picks any number of comparisons from the conditions in this form's own experiment design
+    (`fieldType: "PairwiseConditionComparisons"`)
+  - The value is `{"condition_comparison_pairs": [["C1", "C2"], ...]}`
+- `condition_comparison_field(datasets_ref="input_datasets")`
+  - Picks one comparison already in the dataset chosen in the `datasets_ref` field
+    (`fieldType: "ConditionComparison"`), and which way round to read it
+  - The value is `{"comparison": {"condition_pair": "C7 - C5", "left": "C5", "right": "C7"}}`:
+    `condition_pair` is the dataset's comparison, and `left` and `right` are its two conditions, each of which
+    must appear in `condition_pair`, in either order
 - `control_variables_field(default=None)`
 - `intensity_input_dataset_field()`
 - `intensity_input_datasets_field(entity_types=None, min=1, max=None)`

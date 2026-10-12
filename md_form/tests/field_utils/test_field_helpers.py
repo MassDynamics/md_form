@@ -5,7 +5,7 @@ from pydantic.fields import FieldInfo
 from field_utils.field_helpers import (
     boolean_field, string_field, number_field, select_field, multiple_select_field,
     experiment_design_field, condition_column_field, condition_column_multi_select_field,
-    condition_comparisons_field, control_variables_field, numberrange_field,
+    condition_comparisons_field, condition_comparison_field, control_variables_field, numberrange_field,
     intensity_input_dataset_field, intensity_input_datasets_field, datasets_field, entity_type_field,
     sample_metadata_value_field, sample_metadata_columns_field,
     sample_metadata_values_filter_field, entity_lists_field, databases_field,
@@ -1450,3 +1450,42 @@ class TestFoldChangeThresholdField:
     def test_fold_change_threshold_field_rejects_a_default_that_is_not_a_float(self, default):
         with pytest.raises((TypeCheckError, TypeError)):
             fold_change_threshold_field(default=default)
+
+
+class TestConditionComparisonField:
+    """Test cases for the condition_comparison_field function"""
+
+    def test_condition_comparison_field_basic(self):
+        field = condition_comparison_field()
+
+        assert isinstance(field, FieldInfo)
+        assert field.json_schema_extra["fieldType"] == FieldType.CONDITION_COMPARISON
+        assert field.json_schema_extra["parameters"] == {"datasetsSearch": {"ref": "input_datasets"}}
+        assert "default" not in field.json_schema_extra
+
+    def test_condition_comparison_field_with_datasets_ref(self):
+        field = condition_comparison_field(datasets_ref="dataset_id")
+
+        assert field.json_schema_extra["parameters"] == {"datasetsSearch": {"ref": "dataset_id"}}
+
+    def test_condition_comparison_field_translates(self):
+        class _Form(MdDatasetBaseModel):
+            condition_comparison: Optional[dict] = condition_comparison_field(
+                datasets_ref="dataset_id",
+                name="Pairwise Conditions",
+                group="Data",
+                rules=[is_required()],
+            )
+
+        assert translate_payload(_Form.model_json_schema())["condition_comparison"] == {
+            "fieldType": "ConditionComparison",
+            "group": "Data",
+            "md-field-order": 0,
+            "name": "Pairwise Conditions",
+            "parameters": {"datasetsSearch": {"ref": "dataset_id"}},
+            "rules": [{"name": "is_required"}],
+        }
+
+    def test_condition_comparison_field_rejects_a_non_string_datasets_ref(self):
+        with pytest.raises(TypeCheckError):
+            condition_comparison_field(datasets_ref={"ref": "dataset_id"})

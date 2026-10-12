@@ -29,3 +29,4 @@ class FieldType(str, Enum):
     RADIO_SELECTION = "RadioSelectionField"
     SCIENTIFIC_NOTATION = "ScientificNotation"
     FOLD_CHANGE_THRESHOLD = "FoldChangeThreshold"
+    CONDITION_COMPARISON = "ConditionComparison"

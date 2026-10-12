@@ -33,6 +33,9 @@ runtime, without needing the original Pydantic model. It enforces:
   ``string``, ``array`` or ``object``),
 * ``PairwiseConditionComparisons`` values: an object whose
   ``condition_comparison_pairs`` is a list of two-condition pairs,
+* ``ConditionComparison`` values: ``{"comparison": {"condition_pair":
+  "C7 - C5", "left": "C5", "right": "C7"}}``, whose ``left`` and ``right`` each
+  appear in ``condition_pair``, in either order,
 * ``ProteinLists`` values: a list of ``{"id": ..., "annotation_label": ...,
   "show_annotation": ...}`` objects, where only ``id`` is required,
 * ``PlotSize`` values: ``{"fixed": false}``, or ``{"fixed": true}`` with an
@@ -111,6 +114,9 @@ _SAMPLE_METADATA_TABLE_FIELD_TYPE = FieldType.EXPERIMENT_DESIGN.value  # "Sample
 
 # fieldType of a condition-comparisons object (see field_helpers.condition_comparisons_field).
 _CONDITION_COMPARISONS_FIELD_TYPE = FieldType.CONDITION_COMPARISONS.value  # "PairwiseConditionComparisons"
+
+# fieldType of a single condition comparison (see field_helpers.condition_comparison_field).
+_CONDITION_COMPARISON_FIELD_TYPE = FieldType.CONDITION_COMPARISON.value  # "ConditionComparison"
 
 # fieldType of a list of selected entity lists (see field_helpers.entity_lists_field).
 _ENTITY_LISTS_FIELD_TYPE = FieldType.ENTITY_LISTS.value  # "ProteinLists"
@@ -412,6 +418,13 @@ def _validate_field(name: str, spec: Dict[str, Any], data: Dict[str, Any]) -> Li
     # [condition, condition] pairs. Each malformed comparison is reported.
     if spec.get("fieldType") == _CONDITION_COMPARISONS_FIELD_TYPE:
         shape_errors = _check_condition_comparisons_shape(name, value)
+        if shape_errors:
+            return shape_errors
+
+    # A condition-comparison value is {"comparison": {"condition_pair", "left",
+    # "right"}}. Each malformed part is reported.
+    if spec.get("fieldType") == _CONDITION_COMPARISON_FIELD_TYPE:
+        shape_errors = _check_condition_comparison_shape(name, value)
         if shape_errors:
             return shape_errors
 
@@ -842,6 +855,33 @@ def _check_condition_comparisons_shape(name: str, value: Any) -> List[FieldError
         elif pair[0] == pair[1]:
             errors.append(FieldError(
                 name, f"comparison {number} must compare two different conditions, got {pair!r}"
+            ))
+    return errors
+
+
+def _check_condition_comparison_shape(name: str, value: Any) -> List[FieldError]:
+    """Ensure a value is ``{"comparison": {"condition_pair": "C7 - C5", "left": "C5", "right": "C7"}}``.
+
+    ``condition_pair``, ``left`` and ``right`` must be non-empty strings, and
+    ``left`` and ``right`` must each appear in ``condition_pair``, in either
+    order. Other keys are allowed.
+    """
+    comparison = value.get("comparison") if isinstance(value, dict) else None
+    if not isinstance(comparison, dict):
+        return [FieldError(name, "must be an object with a 'comparison' of 'condition_pair', 'left' and 'right'")]
+    errors: List[FieldError] = []
+    for key in ("condition_pair", "left", "right"):
+        item = comparison.get(key)
+        if not isinstance(item, str) or item == "":
+            errors.append(FieldError(name, f"'comparison.{key}' must be a non-empty string, got {item!r}"))
+    if errors:
+        return errors
+
+    pair = comparison["condition_pair"]
+    for key in ("left", "right"):
+        if comparison[key] not in pair:
+            errors.append(FieldError(
+                name, f"'comparison.{key}' {comparison[key]!r} is not in 'comparison.condition_pair' {pair!r}"
             ))
     return errors
 

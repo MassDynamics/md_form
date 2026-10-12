@@ -16,6 +16,7 @@ from field_utils import (
     boolean_field,
     condition_column_field,
     condition_comparisons_field,
+    condition_comparison_field,
     control_variables_field,
     dataset_table_value_field,
     experiment_design_field,
@@ -3337,3 +3338,99 @@ class TestFoldChangeThreshold:
         assert _errors(validate_form(definition, {"fold_change_threshold": 0.5})) == {
             ("fold_change_threshold", "must be >= 1"),
         }
+
+class TestConditionComparison:
+    """A ConditionComparison value is {"comparison": {"condition_pair": "C7 - C5", "left": "C5", "right": "C7"}}."""
+
+    class _Form(MdDatasetBaseModel):
+        condition_comparison: Optional[dict] = condition_comparison_field(
+            datasets_ref="dataset_id", name="Pairwise Conditions", group="Data", rules=[is_required()]
+        )
+
+    @pytest.fixture()
+    def definition(self):
+        return translate_payload(self._Form.model_json_schema())
+
+    @staticmethod
+    def _comparison(**overrides):
+        return {"comparison": {"condition_pair": "C7 - C5", "left": "C5", "right": "C7", **overrides}}
+
+    @pytest.mark.parametrize("value", [
+        {"comparison": {"condition_pair": "C7 - C5", "left": "C5", "right": "C7"}},
+        {"comparison": {"condition_pair": "C7 - C5", "left": "C7", "right": "C5"}},
+        {"comparison": {"condition_pair": "Treated A - Control", "left": "Control", "right": "Treated A"}},
+        # Other keys are allowed.
+        {"comparison": {"condition_pair": "C7 - C5", "left": "C5", "right": "C7", "label": "C7 vs C5"}},
+        {"comparison": {"condition_pair": "C7 - C5", "left": "C5", "right": "C7"}, "label": "C7 vs C5"},
+    ])
+    def test_valid(self, definition, value):
+        assert validate_form(definition, {"condition_comparison": value}).is_valid
+
+    @pytest.mark.parametrize("data", [
+        {},
+        {"condition_comparison": None},
+        {"condition_comparison": {}},
+        {"condition_comparison": {"comparison": {}}},
+        {"condition_comparison": {"comparison": {"condition_pair": "", "left": None, "right": None}}},
+    ])
+    def test_it_is_required(self, definition, data):
+        assert _errors(validate_form(definition, data)) == {("condition_comparison", "is required")}
+
+    @pytest.mark.parametrize("value", [
+        "C7 - C5",
+        ["C7", "C5"],
+        # The comparison must be wrapped in "comparison".
+        {"condition_pair": "C7 - C5", "left": "C5", "right": "C7"},
+        {"comparison": "C7 - C5"},
+        {"comparison": [{"condition_pair": "C7 - C5", "left": "C5", "right": "C7"}]},
+    ])
+    def test_it_must_be_an_object_with_a_comparison(self, definition, value):
+        assert _errors(validate_form(definition, {"condition_comparison": value})) == {
+            ("condition_comparison", "must be an object with a 'comparison' of 'condition_pair', 'left' and 'right'"),
+        }
+
+    def test_camel_case_condition_pair_is_rejected(self, definition):
+        value = {"comparison": {"conditionPair": "C7 - C5", "left": "C5", "right": "C7"}}
+        assert _errors(validate_form(definition, {"condition_comparison": value})) == {
+            ("condition_comparison", "'comparison.condition_pair' must be a non-empty string, got None"),
+        }
+
+    @pytest.mark.parametrize("key, bad", [
+        ("condition_pair", ["C7", "C5"]),
+        ("condition_pair", ""),
+        ("left", 5),
+        ("left", None),
+        ("right", ""),
+    ])
+    def test_each_key_must_be_a_non_empty_string(self, definition, key, bad):
+        value = self._comparison(**{key: bad})
+        assert _errors(validate_form(definition, {"condition_comparison": value})) == {
+            ("condition_comparison", f"'comparison.{key}' must be a non-empty string, got {bad!r}"),
+        }
+
+    @pytest.mark.parametrize("pair", ["C7-C5", "C5 vs C7", "Treated - C7 - C5"])
+    def test_condition_pair_only_needs_to_contain_left_and_right(self, definition, pair):
+        value = self._comparison(condition_pair=pair)
+        assert validate_form(definition, {"condition_comparison": value}).is_valid
+
+    @pytest.mark.parametrize("key, missing", [("left", "C3"), ("right", "C9"), ("left", "c5")])
+    def test_left_and_right_must_be_in_condition_pair(self, definition, key, missing):
+        value = self._comparison(**{key: missing})
+        assert _errors(validate_form(definition, {"condition_comparison": value})) == {
+            ("condition_comparison", f"'comparison.{key}' {missing!r} is not in 'comparison.condition_pair' 'C7 - C5'"),
+        }
+
+    def test_left_and_right_both_missing_from_condition_pair(self, definition):
+        value = self._comparison(left="C1", right="C2")
+        assert _errors(validate_form(definition, {"condition_comparison": value})) == {
+            ("condition_comparison", "'comparison.left' 'C1' is not in 'comparison.condition_pair' 'C7 - C5'"),
+            ("condition_comparison", "'comparison.right' 'C2' is not in 'comparison.condition_pair' 'C7 - C5'"),
+        }
+
+    def test_optional_field_can_be_unset(self):
+        class _Form(MdDatasetBaseModel):
+            condition_comparison: Optional[dict] = condition_comparison_field()
+
+        definition = translate_payload(_Form.model_json_schema())
+        assert validate_form(definition, {}).is_valid
+        assert validate_form(definition, {"condition_comparison": None}).is_valid
