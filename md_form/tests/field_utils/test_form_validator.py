@@ -21,6 +21,7 @@ from field_utils import (
     experiment_design_field,
     intensity_input_dataset_field,
     intensity_input_datasets_field,
+    entity_lists_field,
     has_multiple_column_values_from_field_in_table,
     has_unique_column_values_in_table,
     is_not_included_in_values_from_field,
@@ -3149,3 +3150,91 @@ class TestRadioSelectionField:
         assert _errors(validate_form(definition, {**data, "database": "phosphosite"})) == {
             ("database", "'phosphosite' is not one of the allowed options ['reactome']"),
         }
+
+
+class TestEntityLists:
+    """A ProteinLists value is a list of {"id", "annotation_label", "show_annotation"} objects; only id is required."""
+
+    class _Form(MdDatasetBaseModel):
+        protein_lists: Optional[List[dict]] = entity_lists_field(
+            name="Protein List", datasets_ref="dataset_id", enable_settings=True, rules=[is_required()],
+        )
+
+    @pytest.fixture()
+    def definition(self):
+        return translate_payload(self._Form.model_json_schema())
+
+    _id = "b4e8449e-2b08-4f1e-83f8-d1359908829d"
+
+    @pytest.mark.parametrize("value", [
+        [{"id": _id, "annotation_label": "gene", "show_annotation": True}],
+        [{"id": _id}],
+        [{"id": _id, "show_annotation": False}],
+        [{"id": _id, "annotation_label": "gene"}],
+        [{"id": _id, "annotation_label": None, "show_annotation": None}],
+        [{"id": _id, "name": "My list", "entityIds": ["P1"]}],
+        [{"id": "l1"}, {"id": "l2", "annotation_label": "protein", "show_annotation": True}],
+    ])
+    def test_valid(self, definition, value):
+        assert validate_form(definition, {"protein_lists": value}).is_valid
+
+    @pytest.mark.parametrize("data", [{}, {"protein_lists": None}, {"protein_lists": []}])
+    def test_it_is_required(self, definition, data):
+        assert _errors(validate_form(definition, data)) == {("protein_lists", "is required")}
+
+    @pytest.mark.parametrize("value", ["l1", {"id": "l1"}, 42])
+    def test_it_must_be_a_list(self, definition, value):
+        assert _errors(validate_form(definition, {"protein_lists": value})) == {
+            ("protein_lists", "must be a list of entity lists"),
+        }
+
+    @pytest.mark.parametrize("item", ["l1", ["l1"], 1])
+    def test_each_list_must_be_an_object(self, definition, item):
+        assert _errors(validate_form(definition, {"protein_lists": [{"id": "l0"}, item]})) == {
+            ("protein_lists", f"entity list 2 must be an object with an 'id', got {item!r}"),
+        }
+
+    @pytest.mark.parametrize("item, got", [
+        ({"annotation_label": "gene"}, "None"),
+        ({"id": "", "show_annotation": True}, "''"),
+        ({"id": 7}, "7"),
+    ])
+    def test_id_is_required(self, definition, item, got):
+        assert _errors(validate_form(definition, {"protein_lists": [item]})) == {
+            ("protein_lists", f"entity list 1 'id' must be a non-empty string, got {got}"),
+        }
+
+    @pytest.mark.parametrize("label", [1, True, ["gene"]])
+    def test_annotation_label_must_be_a_string(self, definition, label):
+        result = validate_form(definition, {"protein_lists": [{"id": self._id, "annotation_label": label}]})
+        assert _errors(result) == {
+            ("protein_lists", f"entity list 1 'annotation_label' must be a string, got {label!r}"),
+        }
+
+    @pytest.mark.parametrize("show", ["true", 1, 0])
+    def test_show_annotation_must_be_a_boolean(self, definition, show):
+        result = validate_form(definition, {"protein_lists": [{"id": self._id, "show_annotation": show}]})
+        assert _errors(result) == {
+            ("protein_lists", f"entity list 1 'show_annotation' must be a boolean, got {show!r}"),
+        }
+
+    def test_each_problem_is_reported(self, definition):
+        value = [
+            {"id": "l1"},
+            {"annotation_label": 3, "show_annotation": "yes"},
+            "junk",
+        ]
+        assert _errors(validate_form(definition, {"protein_lists": value})) == {
+            ("protein_lists", "entity list 2 'id' must be a non-empty string, got None"),
+            ("protein_lists", "entity list 2 'annotation_label' must be a string, got 3"),
+            ("protein_lists", "entity list 2 'show_annotation' must be a boolean, got 'yes'"),
+            ("protein_lists", "entity list 3 must be an object with an 'id', got 'junk'"),
+        }
+
+    def test_optional_field_may_be_left_out(self):
+        class _Form(MdDatasetBaseModel):
+            protein_lists: Optional[List[dict]] = entity_lists_field()
+
+        definition = translate_payload(_Form.model_json_schema())
+        assert validate_form(definition, {}).is_valid
+        assert validate_form(definition, {"protein_lists": [{"id": self._id}]}).is_valid

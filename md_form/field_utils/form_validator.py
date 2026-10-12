@@ -32,6 +32,8 @@ runtime, without needing the original Pydantic model. It enforces:
   ``string``, ``array`` or ``object``),
 * ``PairwiseConditionComparisons`` values: an object whose
   ``condition_comparison_pairs`` is a list of two-condition pairs,
+* ``ProteinLists`` values: a list of ``{"id": ..., "annotation_label": ...,
+  "show_annotation": ...}`` objects, where only ``id`` is required,
 * ``PlotSize`` values: ``{"fixed": false}``, or ``{"fixed": true}`` with an
   int ``width`` and ``height`` between 1 and 1000 pixels,
 * the value/cross-field ``rules`` (``is_equal_to_value``, etc.),
@@ -92,6 +94,9 @@ _SAMPLE_METADATA_TABLE_FIELD_TYPE = FieldType.EXPERIMENT_DESIGN.value  # "Sample
 
 # fieldType of a condition-comparisons object (see field_helpers.condition_comparisons_field).
 _CONDITION_COMPARISONS_FIELD_TYPE = FieldType.CONDITION_COMPARISONS.value  # "PairwiseConditionComparisons"
+
+# fieldType of a list of selected entity lists (see field_helpers.entity_lists_field).
+_ENTITY_LISTS_FIELD_TYPE = FieldType.ENTITY_LISTS.value  # "ProteinLists"
 
 # fieldType of a control-variables list (see field_helpers.control_variables_field).
 _CONTROL_VARIABLES_FIELD_TYPE = FieldType.CONTROL_VARIABLES.value  # "PairwiseControlVariables"
@@ -387,6 +392,14 @@ def _validate_field(name: str, spec: Dict[str, Any], data: Dict[str, Any]) -> Li
     # [condition, condition] pairs. Each malformed comparison is reported.
     if spec.get("fieldType") == _CONDITION_COMPARISONS_FIELD_TYPE:
         shape_errors = _check_condition_comparisons_shape(name, value)
+        if shape_errors:
+            return shape_errors
+
+    # An entity-lists value must be a list of {"id": ...} objects, with an
+    # optional string annotation_label and bool show_annotation. Each
+    # malformed list is reported.
+    if spec.get("fieldType") == _ENTITY_LISTS_FIELD_TYPE:
+        shape_errors = _check_entity_lists_shape(name, value)
         if shape_errors:
             return shape_errors
 
@@ -797,6 +810,33 @@ def _check_condition_comparisons_shape(name: str, value: Any) -> List[FieldError
             errors.append(FieldError(
                 name, f"comparison {number} must compare two different conditions, got {pair!r}"
             ))
+    return errors
+
+
+def _check_entity_lists_shape(name: str, value: Any) -> List[FieldError]:
+    """Ensure a value is a list of ``{"id": ..., "annotation_label": ..., "show_annotation": ...}``.
+
+    ``id`` is required and must be a non-empty string. ``annotation_label``
+    (a string) and ``show_annotation`` (a bool) are optional; a missing or
+    ``None`` one is left unset. Other keys are allowed. Lists are numbered
+    from 1 in the messages, as a user would count them.
+    """
+    if not isinstance(value, list):
+        return [FieldError(name, "must be a list of entity lists")]
+    errors: List[FieldError] = []
+    for number, item in enumerate(value, start=1):
+        if not isinstance(item, dict):
+            errors.append(FieldError(name, f"entity list {number} must be an object with an 'id', got {item!r}"))
+            continue
+        list_id = item.get("id")
+        if not isinstance(list_id, str) or list_id == "":
+            errors.append(FieldError(name, f"entity list {number} 'id' must be a non-empty string, got {list_id!r}"))
+        label = item.get("annotation_label")
+        if label is not None and not isinstance(label, str):
+            errors.append(FieldError(name, f"entity list {number} 'annotation_label' must be a string, got {label!r}"))
+        show = item.get("show_annotation")
+        if show is not None and not isinstance(show, bool):
+            errors.append(FieldError(name, f"entity list {number} 'show_annotation' must be a boolean, got {show!r}"))
     return errors
 
 
