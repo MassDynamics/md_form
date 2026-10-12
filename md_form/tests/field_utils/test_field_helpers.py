@@ -55,6 +55,20 @@ class TestBooleanField:
         # When default is None, it should not be included in json_schema_extra
         assert "default" not in field.json_schema_extra
 
+    def test_entity_type_field_searches_input_datasets_by_default(self):
+        field = entity_type_field()
+
+        assert field.json_schema_extra["parameters"]["datasetsSearch"] == {"ref": "input_datasets"}
+
+    def test_entity_type_field_with_datasets_ref(self):
+        field = entity_type_field(datasets_ref="a_nice_data_set")
+
+        assert field.json_schema_extra["parameters"]["datasetsSearch"] == {"ref": "a_nice_data_set"}
+
+    def test_entity_type_field_rejects_non_string_datasets_ref(self):
+        with pytest.raises(TypeCheckError):
+            entity_type_field(datasets_ref=["a_nice_data_set"])
+
 
 class TestStringField:
     """Test cases for the string_field function"""

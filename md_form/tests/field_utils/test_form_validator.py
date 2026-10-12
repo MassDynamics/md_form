@@ -2924,6 +2924,22 @@ class TestDatasets:
                 ("input_datasets", "dataset 'Dataset 1' does not have entity type 'protein'"),
             }
 
+        def test_datasets_ref_checks_the_named_dataset_field(self):
+            class _Form(MdDatasetBaseModel):
+                entity_type: EntityType = entity_type_field(datasets_ref="a_nice_data_set")
+                a_nice_data_set: list = intensity_input_dataset_field()
+                input_datasets: list = intensity_input_dataset_field()
+
+            definition = translate_payload(_Form.model_json_schema())
+            datasets = [
+                self._dataset("ds1", "Dataset 1", entity_types=["gene"]),
+                self._dataset("ds2", "Dataset 2", entity_types=["gene"]),
+            ]
+            data = {"a_nice_data_set": ["ds1"], "input_datasets": ["ds2"], "entity_type": "protein"}
+            assert _errors(validate_form(definition, data, datasets=datasets)) == {
+                ("a_nice_data_set", "dataset 'Dataset 1' does not have entity type 'protein'"),
+            }
+
 
 class TestValidatesEntityTypeField():
 

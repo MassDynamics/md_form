@@ -374,15 +374,18 @@ def datasets_field(
 @typechecked
 def entity_type_field(
     default: Optional[EntityType] = None,
+    datasets_ref: str = "input_datasets",
 ) -> Dict[str, Any]:
     """Create an entity type field.
 
     `default` is one of the EntityType values (e.g. "protein").
+    `datasets_ref` names the dataset field this entity type applies to; the
+    datasets selected there must have the chosen entity type.
     """
     result = {
         "json_schema_extra": {
             "parameters": {
-                "datasetsSearch": {"ref": "input_datasets"}
+                "datasetsSearch": {"ref": datasets_ref}
             }
         }
     }

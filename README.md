@@ -117,8 +117,9 @@ knowledge_bases = select_field(
 - `intensity_input_dataset_field()`
 - `intensity_input_datasets_field(entity_types=None, min=1, max=None)`
   - `entity_types` is a list of `EntityType` values, e.g. `["protein", "gene"]`
-- `entity_type_field(default=None)`
+- `entity_type_field(default=None, datasets_ref="input_datasets")`
   - `default` is an `EntityType` value, e.g. `"protein"`
+  - `datasets_ref` names the dataset field it applies to; the datasets selected there must have the chosen entity type
 - `plot_size_field(width=None, height=None)`
   - The value is `{"fixed": False}` (fit to module) or `{"fixed": True, "width": <px>, "height": <px>}`,
     with width and height ints between 1 and 1000
