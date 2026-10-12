@@ -28,6 +28,7 @@ from .field_helpers import (
     dataset_table_value_field,
     plot_size_field,
     scientific_notation_field,
+    fold_change_threshold_field,
     FieldDataType,
     EntityType,
 )
@@ -92,6 +93,7 @@ __all__ = [
     "dataset_table_value_field",
     "plot_size_field",
     "scientific_notation_field",
+    "fold_change_threshold_field",
 
     # Rules
     "is_equal_to_value",

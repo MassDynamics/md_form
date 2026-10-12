@@ -127,6 +127,10 @@ knowledge_bases = select_field(
 - `scientific_notation_field(default=None)`
   - The value is a string holding a finite number, such as `"1.5e-3"` or `"0.0015"`
   - A `default` that isn't such a number raises `ValueError`
+- `fold_change_threshold_field(default=None)`
+  - The value is a float of at least 1 (an int such as `2` counts, as JSON sends `2.0` as `2`);
+    the frontend also shows its log2 ratio
+  - A `default` below 1 raises `ValueError`
 - `EntityType` is `Literal["protein", "peptide", "gene", "metabolite", "ptm", "precursor"]`. It is also taken by
   `intensity_input_dataset_field`, `datasets_field` (`entity_types`), and by `entity_list_entity_ids_field`,
   `entity_lists_field` (`type`) and `databases_field` (`entity_type`), which also accept a `{"ref": "<field>"}` dict.

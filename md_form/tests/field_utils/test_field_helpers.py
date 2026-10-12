@@ -10,7 +10,8 @@ from field_utils.field_helpers import (
     sample_metadata_value_field, sample_metadata_columns_field,
     sample_metadata_values_filter_field, entity_lists_field, databases_field,
     reference_data_file_field, dataset_table_value_field, entity_list_entity_ids_field,
-    plot_size_field, radio_selection_field, scientific_notation_field, FieldDataType, EntityType
+    plot_size_field, radio_selection_field, scientific_notation_field,
+    fold_change_threshold_field, FieldDataType, EntityType
 )
 from field_utils.field_types import FieldType
 from field_utils.md_dataset_base_model import MdDatasetBaseModel
@@ -1402,3 +1403,50 @@ class TestScientificNotationField:
     def test_scientific_notation_field_rejects_a_number_default(self):
         with pytest.raises(TypeCheckError):
             scientific_notation_field(default=0.0015)
+
+
+class TestFoldChangeThresholdField:
+    """Test cases for the fold_change_threshold_field function"""
+
+    def test_fold_change_threshold_field_basic(self):
+        field = fold_change_threshold_field()
+
+        assert isinstance(field, FieldInfo)
+        assert field.json_schema_extra["fieldType"] == FieldType.FOLD_CHANGE_THRESHOLD
+        assert "default" not in field.json_schema_extra
+        assert "parameters" not in field.json_schema_extra
+
+    @pytest.mark.parametrize("default", [1, 1.0, 2.0, 4])
+    def test_fold_change_threshold_field_with_default(self, default):
+        field = fold_change_threshold_field(default=default)
+
+        assert field.json_schema_extra["default"] == default
+        assert field.default == default
+
+    def test_fold_change_threshold_field_translates(self):
+        class _Form(MdDatasetBaseModel):
+            fold_change_threshold: Optional[float] = fold_change_threshold_field(
+                default=2.0,
+                name="Fold Change Threshold",
+                group="Plot Configuration",
+                rules=[is_required()],
+            )
+
+        assert translate_payload(_Form.model_json_schema())["fold_change_threshold"] == {
+            "default": 2.0,
+            "fieldType": "FoldChangeThreshold",
+            "group": "Plot Configuration",
+            "md-field-order": 0,
+            "name": "Fold Change Threshold",
+            "rules": [{"name": "is_required"}],
+        }
+
+    @pytest.mark.parametrize("default", [0.99, 0, -2.0])
+    def test_fold_change_threshold_field_rejects_a_default_below_1(self, default):
+        with pytest.raises(ValueError, match=f"default must be >= 1, got {default}"):
+            fold_change_threshold_field(default=default)
+
+    @pytest.mark.parametrize("default", ["2.0", True])
+    def test_fold_change_threshold_field_rejects_a_default_that_is_not_a_float(self, default):
+        with pytest.raises((TypeCheckError, TypeError)):
+            fold_change_threshold_field(default=default)

@@ -681,3 +681,28 @@ def scientific_notation_field(
     if default is not None:
         result["json_schema_extra"] = {"default": default}
     return result
+
+
+# The smallest fold change threshold; a fold change of 1 means no change.
+FOLD_CHANGE_THRESHOLD_MIN = 1
+
+
+@field_builder(FieldType.FOLD_CHANGE_THRESHOLD)
+@typechecked
+def fold_change_threshold_field(
+    default: Optional[float] = None,
+) -> Dict[str, Any]:
+    """Create a fold change threshold field.
+
+    The value is a float of at least 1; an int such as 2 counts, as JSON
+    sends 2.0 as 2. The frontend also shows the corresponding log2 ratio.
+    """
+    if isinstance(default, bool):
+        raise TypeError(f"default must be a float, got {default!r}")
+    if default is not None and default < FOLD_CHANGE_THRESHOLD_MIN:
+        raise ValueError(f"default must be >= {FOLD_CHANGE_THRESHOLD_MIN}, got {default}")
+
+    result: Dict[str, Any] = {}
+    if default is not None:
+        result["json_schema_extra"] = {"default": default}
+    return result

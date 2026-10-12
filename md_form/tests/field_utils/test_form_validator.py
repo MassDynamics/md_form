@@ -19,6 +19,7 @@ from field_utils import (
     control_variables_field,
     dataset_table_value_field,
     experiment_design_field,
+    fold_change_threshold_field,
     intensity_input_dataset_field,
     intensity_input_datasets_field,
     entity_lists_field,
@@ -3282,4 +3283,57 @@ class TestScientificNotation:
         assert validate_form(definition, {"ymin": None}).is_valid
         assert _errors(validate_form(definition, {"ymin": "big"})) == {
             ("ymin", "must be a number such as '1.5e-3', got 'big'"),
+        }
+
+
+class TestFoldChangeThreshold:
+    """A FoldChangeThreshold value is a float of at least 1; JSON sends 2.0 as 2, so an int counts."""
+
+    class _Form(MdDatasetBaseModel):
+        significant_threshold_method: str = select_field(options=["fdr", "p-value"], default="fdr")
+        fold_change_threshold: Optional[float] = fold_change_threshold_field(
+            default=2.0,
+            name="Fold Change Threshold",
+            group="Plot Configuration",
+            rules=[is_required()],
+            when=When.equals("significant_threshold_method", "fdr"),
+        )
+
+    @pytest.fixture()
+    def definition(self):
+        return translate_payload(self._Form.model_json_schema())
+
+    @pytest.mark.parametrize("value", [1, 1.0, 1.5, 2, 2.0, 100])
+    def test_valid(self, definition, value):
+        data = {"significant_threshold_method": "fdr", "fold_change_threshold": value}
+        assert validate_form(definition, data).is_valid
+
+    @pytest.mark.parametrize("value", [0.99, 0, 0.5, -2])
+    def test_it_must_be_at_least_1(self, definition, value):
+        data = {"significant_threshold_method": "fdr", "fold_change_threshold": value}
+        assert _errors(validate_form(definition, data)) == {("fold_change_threshold", "must be >= 1")}
+
+    @pytest.mark.parametrize("value", ["2.0", "", True, [2.0], {"value": 2.0}, None])
+    def test_it_must_be_a_float(self, definition, value):
+        data = {"significant_threshold_method": "fdr", "fold_change_threshold": value}
+        assert _errors(validate_form(definition, data)) == {("fold_change_threshold", "must be a float")}
+
+    def test_it_is_required(self, definition):
+        data = {"significant_threshold_method": "fdr"}
+        assert _errors(validate_form(definition, data)) == {("fold_change_threshold", "is required")}
+
+    def test_it_is_skipped_when_the_method_is_not_fdr(self, definition):
+        assert validate_form(definition, {"significant_threshold_method": "p-value"}).is_valid
+        data = {"significant_threshold_method": "p-value", "fold_change_threshold": 0.5}
+        assert validate_form(definition, data).is_valid
+
+    def test_optional_field_can_be_unset(self):
+        class _Form(MdDatasetBaseModel):
+            fold_change_threshold: Optional[float] = fold_change_threshold_field()
+
+        definition = translate_payload(_Form.model_json_schema())
+        assert validate_form(definition, {}).is_valid
+        assert validate_form(definition, {"fold_change_threshold": None}).is_valid
+        assert _errors(validate_form(definition, {"fold_change_threshold": 0.5})) == {
+            ("fold_change_threshold", "must be >= 1"),
         }

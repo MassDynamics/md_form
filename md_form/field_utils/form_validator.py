@@ -26,7 +26,8 @@ runtime, without needing the original Pydantic model. It enforces:
 * ``parameters.min`` / ``parameters.max`` bounds (a number's value, a string's
   length, a list's item count),
 * value types for ``Boolean`` (a bool), ``Number`` / ``NumberRange`` (an
-  int or float) and ``DatasetTableValue`` (a list, or a single value when
+  int or float), ``FoldChangeThreshold`` (a float, where an int counts, as
+  JSON sends ``2.0`` as ``2``) and ``DatasetTableValue`` (a list, or a single value when
   ``parameters.multiple`` is false) fields,
 * ``parameters.fieldDataType`` on any field (``int``, ``float``, ``boolean``,
   ``string``, ``array`` or ``object``),
@@ -38,6 +39,7 @@ runtime, without needing the original Pydantic model. It enforces:
   int ``width`` and ``height`` between 1 and 1000 pixels,
 * ``ScientificNotation`` values: a string holding a finite number, such as
   ``"1.5e-3"`` or ``"0.0015"``,
+* ``FoldChangeThreshold`` values: a float of at least 1,
 * the value/cross-field ``rules`` (``is_equal_to_value``, etc.),
 * dataset-selection fields against a supplied ``datasets`` list (see the
   ``datasets`` argument of :func:`validate_form`), including that each
@@ -54,7 +56,13 @@ forward-compatible with new field/rule kinds.
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
-from .field_helpers import PLOT_SIZE_MAX, PLOT_SIZE_MIN, FieldDataType, is_scientific_notation
+from .field_helpers import (
+    FOLD_CHANGE_THRESHOLD_MIN,
+    PLOT_SIZE_MAX,
+    PLOT_SIZE_MIN,
+    FieldDataType,
+    is_scientific_notation,
+)
 from .field_types import FieldType
 from .when import evaluate_when
 
@@ -64,9 +72,16 @@ _DATASETS_FIELD_TYPE = FieldType.INTENSITY_INPUT_DATASET.value  # "Datasets"
 # fieldType of a boolean (checkbox/toggle) field.
 _BOOLEAN_FIELD_TYPE = FieldType.BOOLEAN.value  # "Boolean"
 
-# fieldTypes whose value must be a number (see field_helpers.number_field and
-# field_helpers.numberrange_field).
-_NUMBER_FIELD_TYPES = (FieldType.NUMBER.value, FieldType.NUMBER_RANGE.value)  # "Number", "NumberRange"
+# fieldType of a fold change threshold (see field_helpers.fold_change_threshold_field).
+_FOLD_CHANGE_THRESHOLD_FIELD_TYPE = FieldType.FOLD_CHANGE_THRESHOLD.value  # "FoldChangeThreshold"
+
+# fieldTypes whose value must be a number (see field_helpers.number_field,
+# field_helpers.numberrange_field and field_helpers.fold_change_threshold_field).
+_NUMBER_FIELD_TYPES = (
+    FieldType.NUMBER.value,
+    FieldType.NUMBER_RANGE.value,
+    _FOLD_CHANGE_THRESHOLD_FIELD_TYPE,
+)  # "Number", "NumberRange", "FoldChangeThreshold"
 
 # fieldType whose value must be a list, or a single value when single-select
 # (see field_helpers.dataset_table_value_field).
@@ -420,6 +435,11 @@ def _validate_field(name: str, spec: Dict[str, Any], data: Dict[str, Any]) -> Li
     if spec.get("fieldType") == _SCIENTIFIC_NOTATION_FIELD_TYPE and not is_scientific_notation(value):
         return [FieldError(name, f"must be a number such as '1.5e-3', got {value!r}")]
 
+    # A fold change threshold is always at least 1 (no change), whatever
+    # bounds the definition carries. Its type was checked above.
+    if spec.get("fieldType") == _FOLD_CHANGE_THRESHOLD_FIELD_TYPE and value < FOLD_CHANGE_THRESHOLD_MIN:
+        return [FieldError(name, f"must be >= {FOLD_CHANGE_THRESHOLD_MIN}")]
+
     errors: List[FieldError] = []
 
     errors.extend(_check_options(name, spec, value, data))
@@ -692,6 +712,9 @@ def _check_value_type(name: str, spec: Dict[str, Any], value: Any) -> Optional[F
     if field_type in _NUMBER_FIELD_TYPES and (
         not isinstance(value, (int, float)) or isinstance(value, bool)
     ):
+        # A fold change threshold is a float; JSON sends 2.0 as 2, so an int counts.
+        if field_type == _FOLD_CHANGE_THRESHOLD_FIELD_TYPE:
+            return FieldError(name, "must be a float")
         return FieldError(name, "must be a number")
     if field_type == _DATASET_TABLE_VALUE_FIELD_TYPE:
         params = spec.get("parameters")

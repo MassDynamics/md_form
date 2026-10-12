@@ -28,3 +28,4 @@ class FieldType(str, Enum):
     PLOT_SIZE = "PlotSize"
     RADIO_SELECTION = "RadioSelectionField"
     SCIENTIFIC_NOTATION = "ScientificNotation"
+    FOLD_CHANGE_THRESHOLD = "FoldChangeThreshold"
