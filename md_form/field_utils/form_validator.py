@@ -36,6 +36,8 @@ runtime, without needing the original Pydantic model. It enforces:
   "show_annotation": ...}`` objects, where only ``id`` is required,
 * ``PlotSize`` values: ``{"fixed": false}``, or ``{"fixed": true}`` with an
   int ``width`` and ``height`` between 1 and 1000 pixels,
+* ``ScientificNotation`` values: a string holding a finite number, such as
+  ``"1.5e-3"`` or ``"0.0015"``,
 * the value/cross-field ``rules`` (``is_equal_to_value``, etc.),
 * dataset-selection fields against a supplied ``datasets`` list (see the
   ``datasets`` argument of :func:`validate_form`), including that each
@@ -52,7 +54,7 @@ forward-compatible with new field/rule kinds.
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
-from .field_helpers import PLOT_SIZE_MAX, PLOT_SIZE_MIN, FieldDataType
+from .field_helpers import PLOT_SIZE_MAX, PLOT_SIZE_MIN, FieldDataType, is_scientific_notation
 from .field_types import FieldType
 from .when import evaluate_when
 
@@ -106,6 +108,9 @@ _ENTITY_TYPE_FIELD_TYPE = FieldType.ENTITY_TYPE.value  # "EntityType"
 
 # fieldType of a plot-size object (see field_helpers.plot_size_field).
 _PLOT_SIZE_FIELD_TYPE = FieldType.PLOT_SIZE.value  # "PlotSize"
+
+# fieldType of a number written as a string (see field_helpers.scientific_notation_field).
+_SCIENTIFIC_NOTATION_FIELD_TYPE = FieldType.SCIENTIFIC_NOTATION.value  # "ScientificNotation"
 
 # Only fully-processed datasets are selectable.
 _COMPLETED_STATE = "COMPLETED"
@@ -409,6 +414,11 @@ def _validate_field(name: str, spec: Dict[str, Any], data: Dict[str, Any]) -> Li
         shape_errors = _check_plot_size_shape(name, value)
         if shape_errors:
             return shape_errors
+
+    # A scientific-notation value is a number sent as a string, such as
+    # "1.5e-3"; like the frontend, a non-finite one ("inf", "1e999") fails.
+    if spec.get("fieldType") == _SCIENTIFIC_NOTATION_FIELD_TYPE and not is_scientific_notation(value):
+        return [FieldError(name, f"must be a number such as '1.5e-3', got {value!r}")]
 
     errors: List[FieldError] = []
 

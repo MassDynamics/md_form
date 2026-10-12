@@ -10,7 +10,7 @@ from field_utils.field_helpers import (
     sample_metadata_value_field, sample_metadata_columns_field,
     sample_metadata_values_filter_field, entity_lists_field, databases_field,
     reference_data_file_field, dataset_table_value_field, entity_list_entity_ids_field,
-    plot_size_field, radio_selection_field, FieldDataType, EntityType
+    plot_size_field, radio_selection_field, scientific_notation_field, FieldDataType, EntityType
 )
 from field_utils.field_types import FieldType
 from field_utils.md_dataset_base_model import MdDatasetBaseModel
@@ -1363,3 +1363,42 @@ class TestEntityTypeHelpers:
         definition = translate_payload(_Form.model_json_schema())
         assert definition["entity_type"]["default"] == "protein"
         assert definition["input_datasets"]["parameters"]["entityTypes"] == ["protein", "ptm"]
+
+
+class TestScientificNotationField:
+    """Test cases for the scientific_notation_field function"""
+
+    def test_scientific_notation_field_basic(self):
+        field = scientific_notation_field()
+
+        assert isinstance(field, FieldInfo)
+        assert field.json_schema_extra["fieldType"] == FieldType.SCIENTIFIC_NOTATION
+        assert "default" not in field.json_schema_extra
+        assert "parameters" not in field.json_schema_extra
+
+    def test_scientific_notation_field_with_default(self):
+        field = scientific_notation_field(default="1.5e-3")
+
+        assert field.json_schema_extra["default"] == "1.5e-3"
+        assert field.default == "1.5e-3"
+
+    def test_scientific_notation_field_translates(self):
+        class _Form(MdDatasetBaseModel):
+            ymin: Optional[str] = scientific_notation_field(name="Minimum P-Value", group="Plot Configuration")
+
+        assert translate_payload(_Form.model_json_schema())["ymin"] == {
+            "default": None,
+            "fieldType": "ScientificNotation",
+            "group": "Plot Configuration",
+            "md-field-order": 0,
+            "name": "Minimum P-Value",
+        }
+
+    @pytest.mark.parametrize("default", ["", "abc", "1.5e", "e-3", "inf", "nan", "1e999", "0x10", "1_000"])
+    def test_scientific_notation_field_rejects_a_default_that_is_not_a_number(self, default):
+        with pytest.raises(ValueError, match="default must be a number such as '1.5e-3'"):
+            scientific_notation_field(default=default)
+
+    def test_scientific_notation_field_rejects_a_number_default(self):
+        with pytest.raises(TypeCheckError):
+            scientific_notation_field(default=0.0015)

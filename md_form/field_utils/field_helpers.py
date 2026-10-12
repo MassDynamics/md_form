@@ -1,3 +1,5 @@
+import math
+import re
 from enum import Enum
 from typing import Any, Dict, List, Literal, Optional, Union
 from .field_types import FieldType
@@ -647,3 +649,35 @@ def plot_size_field(
         default = {"fixed": True, "width": width, "height": height}
 
     return {"json_schema_extra": {"default": default}}
+
+
+# A decimal number, optionally in scientific notation, such as "0.0015" or
+# "1.5e-3". Surrounding whitespace is allowed, as the frontend trims it.
+_SCIENTIFIC_NOTATION_PATTERN = re.compile(r"[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?")
+
+
+def is_scientific_notation(value: Any) -> bool:
+    """Whether `value` is a string holding a finite number such as "1.5e-3"."""
+    if not isinstance(value, str):
+        return False
+    text = value.strip()
+    return _SCIENTIFIC_NOTATION_PATTERN.fullmatch(text) is not None and math.isfinite(float(text))
+
+
+@field_builder(FieldType.SCIENTIFIC_NOTATION)
+@typechecked
+def scientific_notation_field(
+    default: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Create a scientific notation field.
+
+    The value is a string holding a finite number, written plainly or in
+    scientific notation, such as "0.0015" or "1.5e-3".
+    """
+    if default is not None and not is_scientific_notation(default):
+        raise ValueError(f"default must be a number such as '1.5e-3', got {default!r}")
+
+    result: Dict[str, Any] = {}
+    if default is not None:
+        result["json_schema_extra"] = {"default": default}
+    return result

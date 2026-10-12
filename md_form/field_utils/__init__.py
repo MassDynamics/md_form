@@ -27,6 +27,7 @@ from .field_helpers import (
     reference_data_file_field,
     dataset_table_value_field,
     plot_size_field,
+    scientific_notation_field,
     FieldDataType,
     EntityType,
 )
@@ -90,6 +91,7 @@ __all__ = [
     "reference_data_file_field",
     "dataset_table_value_field",
     "plot_size_field",
+    "scientific_notation_field",
 
     # Rules
     "is_equal_to_value",

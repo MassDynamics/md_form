@@ -31,6 +31,7 @@ from field_utils import (
     numberrange_field,
     plot_size_field,
     radio_selection_field,
+    scientific_notation_field,
     select_field,
     is_equal_to_value,
     is_not_equal_to_value,
@@ -3238,3 +3239,47 @@ class TestEntityLists:
         definition = translate_payload(_Form.model_json_schema())
         assert validate_form(definition, {}).is_valid
         assert validate_form(definition, {"protein_lists": [{"id": self._id}]}).is_valid
+
+
+class TestScientificNotation:
+    """A ScientificNotation value is a string holding a finite number, such as "1.5e-3"."""
+
+    class _Form(MdDatasetBaseModel):
+        ymin: Optional[str] = scientific_notation_field(name="Minimum P-Value", rules=[is_required()])
+
+    @pytest.fixture()
+    def definition(self):
+        return translate_payload(self._Form.model_json_schema())
+
+    @pytest.mark.parametrize("value", [
+        "1.5e-3", "1.5E-3", "1e5", "-2.5e+10", "+1e-300", "0.0015", "10", ".5", "5.", " 1.5e-3 ",
+    ])
+    def test_valid(self, definition, value):
+        assert validate_form(definition, {"ymin": value}).is_valid
+
+    @pytest.mark.parametrize("data", [{}, {"ymin": None}, {"ymin": ""}])
+    def test_it_is_required(self, definition, data):
+        assert _errors(validate_form(definition, data)) == {("ymin", "is required")}
+
+    @pytest.mark.parametrize("value", ["abc", "1.5e", "e-3", "1.5e-3.0", "1,5e-3", "inf", "nan", "1e999", "0x10", "1_000", "   "])
+    def test_it_must_be_a_number(self, definition, value):
+        assert _errors(validate_form(definition, {"ymin": value})) == {
+            ("ymin", f"must be a number such as '1.5e-3', got {value!r}"),
+        }
+
+    @pytest.mark.parametrize("value", [0.0015, 10, True, ["1e-3"], {"value": "1e-3"}])
+    def test_it_must_be_a_string(self, definition, value):
+        assert _errors(validate_form(definition, {"ymin": value})) == {
+            ("ymin", f"must be a number such as '1.5e-3', got {value!r}"),
+        }
+
+    def test_optional_field_can_be_unset(self):
+        class _Form(MdDatasetBaseModel):
+            ymin: Optional[str] = scientific_notation_field()
+
+        definition = translate_payload(_Form.model_json_schema())
+        assert validate_form(definition, {}).is_valid
+        assert validate_form(definition, {"ymin": None}).is_valid
+        assert _errors(validate_form(definition, {"ymin": "big"})) == {
+            ("ymin", "must be a number such as '1.5e-3', got 'big'"),
+        }
