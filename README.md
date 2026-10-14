@@ -129,6 +129,13 @@ knowledge_bases = select_field(
 - `entity_type_field(default=None, datasets_ref="input_datasets")`
   - `default` is an `EntityType` value, e.g. `"protein"`
   - `datasets_ref` names the dataset field it applies to; the datasets selected there must have the chosen entity type
+- `dataset_param_multiple_field(datasets_ref="input_datasets", initialise_with_all=True)`
+  - Picks any of the databases recorded in the job run params of the dataset chosen in the `datasets_ref` field
+    (`fieldType: "DatasetParamMultiple"`): the knowledge bases and analysis set names of its `Databases` params
+    or, failing those, its `sets`
+  - The value is a list of different database names, e.g. `["GO - Biological Process", "MSigDB-H (hallmark gene sets)"]`
+  - With `initialise_with_all`, the frontend starts with every database selected
+  - When `validate_form` is given `datasets`, each name must be one of the dataset's databases
 - `plot_size_field(width=None, height=None)`
   - The value is `{"fixed": False}` (fit to module) or `{"fixed": True, "width": <px>, "height": <px>}`,
     with width and height ints between 1 and 1000

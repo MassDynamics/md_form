@@ -30,3 +30,4 @@ class FieldType(str, Enum):
     SCIENTIFIC_NOTATION = "ScientificNotation"
     FOLD_CHANGE_THRESHOLD = "FoldChangeThreshold"
     CONDITION_COMPARISON = "ConditionComparison"
+    DATASET_PARAM_MULTIPLE = "DatasetParamMultiple"

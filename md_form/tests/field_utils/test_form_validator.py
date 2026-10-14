@@ -18,6 +18,7 @@ from field_utils import (
     condition_comparisons_field,
     condition_comparison_field,
     control_variables_field,
+    dataset_param_multiple_field,
     dataset_table_value_field,
     experiment_design_field,
     fold_change_threshold_field,
@@ -3434,3 +3435,137 @@ class TestConditionComparison:
         definition = translate_payload(_Form.model_json_schema())
         assert validate_form(definition, {}).is_valid
         assert validate_form(definition, {"condition_comparison": None}).is_valid
+
+
+class TestDatasetParamMultiple:
+    """A DatasetParamMultiple value is a list of database names from the selected dataset's job run params."""
+
+    _DATABASES = [
+        "GO - Biological Process",
+        "GO - Cellular Component",
+        "GO - Molecular Function",
+        "MSigDB-H (hallmark gene sets)",
+    ]
+
+    class _Form(MdDatasetBaseModel):
+        dataset_id: list = intensity_input_datasets_field()
+        database_selection: Optional[List[str]] = dataset_param_multiple_field(
+            datasets_ref="dataset_id", name="Databases", group="Plot Configuration", rules=[is_required()]
+        )
+
+    @pytest.fixture()
+    def definition(self):
+        return translate_payload(self._Form.model_json_schema())
+
+    @staticmethod
+    def _dataset(job_run_params, dataset_id="ds-1"):
+        return {
+            "id": dataset_id,
+            "name": "ORA run",
+            "type": "INTENSITY",
+            "state": "COMPLETED",
+            "job_run_params": job_run_params,
+        }
+
+    @pytest.fixture()
+    def datasets(self):
+        return [self._dataset({
+            "databases": {
+                "knowledgeBases": self._DATABASES[:3],
+                "analysisSets": [{"name": "MSigDB-H (hallmark gene sets)", "lists": []}],
+            },
+            "entity_type": "protein",
+        })]
+
+    def _validate(self, definition, value, datasets):
+        return validate_form(definition, {"dataset_id": ["ds-1"], "database_selection": value}, datasets=datasets)
+
+    def test_valid(self, definition, datasets):
+        assert self._validate(definition, self._DATABASES, datasets).is_valid
+        assert self._validate(definition, ["GO - Molecular Function"], datasets).is_valid
+
+    @pytest.mark.parametrize("value", [None, []])
+    def test_it_is_required(self, definition, datasets, value):
+        assert _errors(self._validate(definition, value, datasets)) == {("database_selection", "is required")}
+
+    @pytest.mark.parametrize("value", ["GO - Biological Process", {"databases": ["GO - Biological Process"]}, 5])
+    def test_it_must_be_a_list(self, definition, datasets, value):
+        assert _errors(self._validate(definition, value, datasets)) == {
+            ("database_selection", "must be a list of database names"),
+        }
+
+    def test_each_database_must_be_a_non_empty_string(self, definition, datasets):
+        value = ["GO - Biological Process", "", 5, {"name": "GO - Cellular Component"}]
+        assert _errors(self._validate(definition, value, datasets)) == {
+            ("database_selection", "database 2 must be a non-empty string, got ''"),
+            ("database_selection", "database 3 must be a non-empty string, got 5"),
+            ("database_selection", "database 4 must be a non-empty string, got {'name': 'GO - Cellular Component'}"),
+        }
+
+    def test_each_database_is_selected_once(self, definition, datasets):
+        value = ["GO - Biological Process", "GO - Cellular Component", "GO - Biological Process"]
+        assert _errors(self._validate(definition, value, datasets)) == {
+            ("database_selection", "database 'GO - Biological Process' is selected more than once"),
+        }
+
+    def test_each_database_must_be_in_the_dataset(self, definition, datasets):
+        value = ["GO - Biological Process", "KEGG", "Reactome"]
+        assert _errors(self._validate(definition, value, datasets)) == {
+            ("database_selection", "dataset 'ORA run' does not have database 'KEGG'"),
+            ("database_selection", "dataset 'ORA run' does not have database 'Reactome'"),
+        }
+
+    def test_databases_are_read_from_any_databases_param(self, definition):
+        datasets = [self._dataset({"go": {"knowledgeBases": ["GO - Biological Process"]},
+                                   "custom": {"analysisSets": [{"name": "My set"}]}})]
+        assert self._validate(definition, ["GO - Biological Process", "My set"], datasets).is_valid
+        assert _errors(self._validate(definition, ["KEGG"], datasets)) == {
+            ("database_selection", "dataset 'ORA run' does not have database 'KEGG'"),
+        }
+
+    def test_databases_fall_back_to_sets(self, definition):
+        datasets = [self._dataset({"sets": ["Hallmark", "KEGG"]})]
+        assert self._validate(definition, ["KEGG"], datasets).is_valid
+        assert _errors(self._validate(definition, ["Reactome"], datasets)) == {
+            ("database_selection", "dataset 'ORA run' does not have database 'Reactome'"),
+        }
+
+    def test_sets_are_ignored_when_there_are_databases_params(self, definition):
+        datasets = [self._dataset({"databases": {"knowledgeBases": ["GO - Biological Process"]}, "sets": ["KEGG"]})]
+        assert _errors(self._validate(definition, ["KEGG"], datasets)) == {
+            ("database_selection", "dataset 'ORA run' does not have database 'KEGG'"),
+        }
+
+    @pytest.mark.parametrize("job_run_params", [None, {}, {"sets": "KEGG"}, {"databases": {"knowledgeBases": []}}])
+    def test_names_are_not_checked_when_the_dataset_records_no_databases(self, definition, job_run_params):
+        datasets = [self._dataset(job_run_params)]
+        assert self._validate(definition, ["Anything"], datasets).is_valid
+
+    def test_names_are_not_checked_without_datasets(self):
+        class _Form(MdDatasetBaseModel):
+            dataset_id: str = select_field(options=["ds-1"])
+            database_selection: Optional[List[str]] = dataset_param_multiple_field(datasets_ref="dataset_id")
+
+        definition = translate_payload(_Form.model_json_schema())
+        assert validate_form(definition, {"dataset_id": "ds-1", "database_selection": ["Anything"]}).is_valid
+
+    def test_names_are_not_checked_when_the_dataset_is_unknown(self, definition, datasets):
+        result = validate_form(
+            definition, {"dataset_id": ["ds-2"], "database_selection": ["Anything"]}, datasets=datasets
+        )
+        assert _errors(result) == {("dataset_id", "dataset 'ds-2' is not in the provided datasets")}
+
+    def test_the_first_selected_dataset_is_used(self, definition, datasets):
+        datasets = datasets + [self._dataset({"sets": ["KEGG"]}, dataset_id="ds-2")]
+        data = {"dataset_id": ["ds-1", "ds-2"], "database_selection": ["KEGG"]}
+        assert _errors(validate_form(definition, data, datasets=datasets)) == {
+            ("database_selection", "dataset 'ORA run' does not have database 'KEGG'"),
+        }
+
+    def test_optional_field_can_be_unset(self):
+        class _Form(MdDatasetBaseModel):
+            database_selection: Optional[List[str]] = dataset_param_multiple_field()
+
+        definition = translate_payload(_Form.model_json_schema())
+        assert validate_form(definition, {}).is_valid
+        assert validate_form(definition, {"database_selection": None}).is_valid

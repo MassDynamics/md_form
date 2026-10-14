@@ -1,5 +1,5 @@
 import pytest
-from typing import Dict, Any, Optional, get_args
+from typing import Dict, Any, List, Optional, get_args
 from typeguard import TypeCheckError
 from pydantic.fields import FieldInfo
 from field_utils.field_helpers import (
@@ -8,7 +8,7 @@ from field_utils.field_helpers import (
     condition_comparisons_field, condition_comparison_field, control_variables_field, numberrange_field,
     intensity_input_dataset_field, intensity_input_datasets_field, datasets_field, entity_type_field,
     sample_metadata_value_field, sample_metadata_columns_field,
-    sample_metadata_values_filter_field, entity_lists_field, databases_field,
+    sample_metadata_values_filter_field, entity_lists_field, databases_field, dataset_param_multiple_field,
     reference_data_file_field, dataset_table_value_field, entity_list_entity_ids_field,
     plot_size_field, radio_selection_field, scientific_notation_field,
     fold_change_threshold_field, FieldDataType, EntityType
@@ -1489,3 +1489,51 @@ class TestConditionComparisonField:
     def test_condition_comparison_field_rejects_a_non_string_datasets_ref(self):
         with pytest.raises(TypeCheckError):
             condition_comparison_field(datasets_ref={"ref": "dataset_id"})
+
+
+class TestDatasetParamMultipleField:
+    """Test cases for the dataset_param_multiple_field function"""
+
+    def test_dataset_param_multiple_field_basic(self):
+        field = dataset_param_multiple_field()
+
+        assert isinstance(field, FieldInfo)
+        assert field.json_schema_extra["fieldType"] == FieldType.DATASET_PARAM_MULTIPLE
+        assert field.json_schema_extra["parameters"] == {
+            "datasetsSearch": {"ref": "input_datasets"},
+            "initialiseWithAll": True,
+        }
+        assert "default" not in field.json_schema_extra
+
+    def test_dataset_param_multiple_field_with_params(self):
+        field = dataset_param_multiple_field(datasets_ref="dataset_id", initialise_with_all=False)
+
+        assert field.json_schema_extra["parameters"] == {
+            "datasetsSearch": {"ref": "dataset_id"},
+            "initialiseWithAll": False,
+        }
+
+    def test_dataset_param_multiple_field_translates(self):
+        class _Form(MdDatasetBaseModel):
+            database_selection: Optional[List[str]] = dataset_param_multiple_field(
+                datasets_ref="dataset_id",
+                name="Databases",
+                description="Select the databases you want to render.",
+                group="Plot Configuration",
+                rules=[is_required()],
+            )
+
+        assert translate_payload(_Form.model_json_schema())["database_selection"] == {
+            "description": "Select the databases you want to render.",
+            "fieldType": "DatasetParamMultiple",
+            "group": "Plot Configuration",
+            "md-field-order": 0,
+            "name": "Databases",
+            "parameters": {"datasetsSearch": {"ref": "dataset_id"}, "initialiseWithAll": True},
+            "rules": [{"name": "is_required"}],
+        }
+
+    @pytest.mark.parametrize("kwargs", [{"datasets_ref": {"ref": "dataset_id"}}, {"initialise_with_all": "yes"}])
+    def test_dataset_param_multiple_field_rejects_wrong_types(self, kwargs):
+        with pytest.raises(TypeCheckError):
+            dataset_param_multiple_field(**kwargs)

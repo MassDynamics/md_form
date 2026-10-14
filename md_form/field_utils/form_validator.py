@@ -43,11 +43,14 @@ runtime, without needing the original Pydantic model. It enforces:
 * ``ScientificNotation`` values: a string holding a finite number, such as
   ``"1.5e-3"`` or ``"0.0015"``,
 * ``FoldChangeThreshold`` values: a float of at least 1,
+* ``DatasetParamMultiple`` values: a list of different, non-empty database
+  names,
 * the value/cross-field ``rules`` (``is_equal_to_value``, etc.),
 * dataset-selection fields against a supplied ``datasets`` list (see the
   ``datasets`` argument of :func:`validate_form`), including that each
   selected dataset has the entity type chosen in an ``EntityType`` field
-  pointing at it.
+  pointing at it, and that the databases picked in a ``DatasetParamMultiple``
+  field are recorded in its dataset's job run params.
 
 Beyond the boolean, number and dataset-table-value fields above, ``fieldType`` is treated as a
 frontend widget hint rather than a reliable data type, so it is not used to
@@ -126,6 +129,10 @@ _CONTROL_VARIABLES_FIELD_TYPE = FieldType.CONTROL_VARIABLES.value  # "PairwiseCo
 
 # fieldType of an entity-type field (see field_helpers.entity_type_field).
 _ENTITY_TYPE_FIELD_TYPE = FieldType.ENTITY_TYPE.value  # "EntityType"
+
+# fieldType of a list of database names taken from a dataset's job run params
+# (see field_helpers.dataset_param_multiple_field).
+_DATASET_PARAM_MULTIPLE_FIELD_TYPE = FieldType.DATASET_PARAM_MULTIPLE.value  # "DatasetParamMultiple"
 
 # fieldType of a plot-size object (see field_helpers.plot_size_field).
 _PLOT_SIZE_FIELD_TYPE = FieldType.PLOT_SIZE.value  # "PlotSize"
@@ -227,6 +234,7 @@ def validate_form(
         errors.extend(_validate_field(name, spec, data))
 
     errors.extend(_check_datasets(fields, data, datasets))
+    errors.extend(_check_dataset_params(fields, data, datasets))
 
     if not allow_unknown:
         for key in data:
@@ -314,6 +322,80 @@ def _selected_entity_types(fields: Dict[str, Any], data: Dict[str, Any], dataset
         if isinstance(value, str) and value not in entity_types:
             entity_types.append(value)
     return entity_types
+
+
+def _check_dataset_params(
+    fields: Dict[str, Any],
+    data: Dict[str, Any],
+    datasets: Optional[List[Dict[str, Any]]],
+) -> List[FieldError]:
+    """Check that the databases picked in ``DatasetParamMultiple`` fields exist.
+
+    Like the frontend, the options come from the first dataset selected in
+    the field named by ``parameters.datasetsSearch.ref``: see
+    ``_dataset_database_names``. A field is skipped when it is inactive,
+    unset or malformed, when ``datasets`` is not given or lacks that dataset (the
+    ``Datasets`` field reports those), or when no databases can be found in
+    the dataset's ``job_run_params``.
+    """
+    if datasets is None:
+        return []
+    by_id = {d["id"]: d for d in datasets if isinstance(d, dict) and "id" in d}
+    errors: List[FieldError] = []
+    for name, spec in fields.items():
+        if spec.get("fieldType") != _DATASET_PARAM_MULTIPLE_FIELD_TYPE:
+            continue
+        when = spec.get("when")
+        if when and not evaluate_when(when, data):
+            continue
+        value = data.get(name)
+        # A malformed value is reported by _validate_field.
+        if _is_absent(value) or _check_dataset_param_multiple_shape(name, value):
+            continue
+        search = (spec.get("parameters") or {}).get("datasetsSearch")
+        if not isinstance(search, dict) or _is_absent(data.get(search.get("ref"))):
+            continue
+        dataset = by_id.get(_selected_dataset_ids(data[search["ref"]])[0])
+        if dataset is None:
+            continue
+        available = _dataset_database_names(dataset.get("job_run_params"))
+        if not available:
+            continue
+        for database in value:
+            if database not in available:
+                errors.append(FieldError(
+                    name, f"dataset {dataset.get('name', dataset['id'])!r} does not have database {database!r}"
+                ))
+    return errors
+
+
+def _dataset_database_names(job_run_params: Any) -> List[str]:
+    """The database names recorded in a dataset's ``job_run_params``.
+
+    These are the ``knowledgeBases`` and ``analysisSets[].name`` of every
+    ``Databases`` value in the params or, when there are none, the ``sets``
+    list. The frontend only reads params whose job definition marks them as
+    ``Databases`` fields; without job definitions, any value of that shape is
+    read.
+    """
+    if not isinstance(job_run_params, dict):
+        return []
+    names: List[str] = []
+    for param in job_run_params.values():
+        if not isinstance(param, dict):
+            continue
+        knowledge_bases = param.get("knowledgeBases")
+        analysis_sets = param.get("analysisSets")
+        if isinstance(knowledge_bases, list):
+            names.extend(kb for kb in knowledge_bases if isinstance(kb, str))
+        if isinstance(analysis_sets, list):
+            names.extend(
+                s["name"] for s in analysis_sets if isinstance(s, dict) and isinstance(s.get("name"), str)
+            )
+    if names:
+        return names
+    sets = job_run_params.get("sets")
+    return [s for s in sets if isinstance(s, str)] if isinstance(sets, list) else []
 
 
 def _selected_dataset_ids(value: Any) -> List[Any]:
@@ -433,6 +515,13 @@ def _validate_field(name: str, spec: Dict[str, Any], data: Dict[str, Any]) -> Li
     # malformed list is reported.
     if spec.get("fieldType") == _ENTITY_LISTS_FIELD_TYPE:
         shape_errors = _check_entity_lists_shape(name, value)
+        if shape_errors:
+            return shape_errors
+
+    # A dataset-param-multiple value is a list of different, non-empty
+    # database names. Each malformed name is reported.
+    if spec.get("fieldType") == _DATASET_PARAM_MULTIPLE_FIELD_TYPE:
+        shape_errors = _check_dataset_param_multiple_shape(name, value)
         if shape_errors:
             return shape_errors
 
@@ -910,6 +999,25 @@ def _check_entity_lists_shape(name: str, value: Any) -> List[FieldError]:
         show = item.get("show_annotation")
         if show is not None and not isinstance(show, bool):
             errors.append(FieldError(name, f"entity list {number} 'show_annotation' must be a boolean, got {show!r}"))
+    return errors
+
+
+def _check_dataset_param_multiple_shape(name: str, value: Any) -> List[FieldError]:
+    """Ensure a value is a list of different, non-empty database names.
+
+    Databases are numbered from 1 in the messages, as a user would count them.
+    """
+    if not isinstance(value, list):
+        return [FieldError(name, "must be a list of database names")]
+    errors: List[FieldError] = []
+    seen: List[str] = []
+    for number, database in enumerate(value, start=1):
+        if not isinstance(database, str) or database == "":
+            errors.append(FieldError(name, f"database {number} must be a non-empty string, got {database!r}"))
+        elif database in seen:
+            errors.append(FieldError(name, f"database {database!r} is selected more than once"))
+        else:
+            seen.append(database)
     return errors
 
 

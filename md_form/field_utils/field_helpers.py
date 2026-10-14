@@ -562,6 +562,33 @@ def databases_field(
     return result
 
 
+@field_builder(FieldType.DATASET_PARAM_MULTIPLE)
+@typechecked
+def dataset_param_multiple_field(
+    datasets_ref: str = "input_datasets",
+    initialise_with_all: bool = True,
+) -> Dict[str, Any]:
+    """Create a dataset param multiple field.
+
+    Picks any of the databases recorded in the job run params of the dataset
+    chosen in the `datasets_ref` field: the knowledge bases and analysis set
+    names of its `Databases` params or, failing those, its `sets`. The value
+    is a list of those names, such as
+    `["GO - Biological Process", "MSigDB-H (hallmark gene sets)"]`.
+
+    With `initialise_with_all` (the default), the frontend starts with every
+    database selected.
+    """
+    return {
+        "json_schema_extra": {
+            "parameters": {
+                "datasetsSearch": {"ref": datasets_ref},
+                "initialiseWithAll": initialise_with_all,
+            }
+        }
+    }
+
+
 @field_builder(FieldType.REFERENCE_DATA_FILE)
 @typechecked
 def reference_data_file_field(accept: Optional[List[str]] = None) -> Dict[str, Any]:
