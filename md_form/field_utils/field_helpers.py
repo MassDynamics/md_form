@@ -501,6 +501,11 @@ def sample_metadata_values_filter_field(
 ) -> Dict[str, Any]:
     """Pick multiple values to keep from a single sample metadata column.
 
+    The value is `{"values": ["C1", "C3"], "filters": [...]}`: `values` are
+    the column values to keep, and `filters`, only filled in with advanced
+    filtering, are `{"column": "batch", "value": ["B1"]}` objects that narrow
+    which values can be picked. `filters` may be left out.
+
     The frontend populates the selectable value list from the experiment
     design table using `column_ref` (the field holding the selected column
     name) and `datasets_ref` (the field holding the dataset reference).

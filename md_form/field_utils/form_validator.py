@@ -43,6 +43,10 @@ runtime, without needing the original Pydantic model. It enforces:
 * ``ScientificNotation`` values: a string holding a finite number, such as
   ``"1.5e-3"`` or ``"0.0015"``,
 * ``FoldChangeThreshold`` values: a float of at least 1,
+* ``SampleMetadataValuesFilter`` values: ``{"values": [...], "filters":
+  [...]}``, where ``values`` are different, non-empty strings outside
+  ``parameters.ignoredValues`` and the optional ``filters`` are
+  ``{"column": ..., "value": [...]}`` objects,
 * ``DatasetParamMultiple`` values: a list of different, non-empty database
   names,
 * the value/cross-field ``rules`` (``is_equal_to_value``, etc.),
@@ -129,6 +133,10 @@ _CONTROL_VARIABLES_FIELD_TYPE = FieldType.CONTROL_VARIABLES.value  # "PairwiseCo
 
 # fieldType of an entity-type field (see field_helpers.entity_type_field).
 _ENTITY_TYPE_FIELD_TYPE = FieldType.ENTITY_TYPE.value  # "EntityType"
+
+# fieldType of the values kept from a sample metadata column
+# (see field_helpers.sample_metadata_values_filter_field).
+_SAMPLE_METADATA_VALUES_FILTER_FIELD_TYPE = FieldType.SAMPLE_METADATA_VALUES_FILTER.value  # "SampleMetadataValuesFilter"
 
 # fieldType of a list of database names taken from a dataset's job run params
 # (see field_helpers.dataset_param_multiple_field).
@@ -515,6 +523,13 @@ def _validate_field(name: str, spec: Dict[str, Any], data: Dict[str, Any]) -> Li
     # malformed list is reported.
     if spec.get("fieldType") == _ENTITY_LISTS_FIELD_TYPE:
         shape_errors = _check_entity_lists_shape(name, value)
+        if shape_errors:
+            return shape_errors
+
+    # A sample-metadata-values-filter value is {"values": [...], "filters":
+    # [...]}. Each malformed value and filter is reported.
+    if spec.get("fieldType") == _SAMPLE_METADATA_VALUES_FILTER_FIELD_TYPE:
+        shape_errors = _check_sample_metadata_values_filter_shape(name, spec, value)
         if shape_errors:
             return shape_errors
 
@@ -999,6 +1014,56 @@ def _check_entity_lists_shape(name: str, value: Any) -> List[FieldError]:
         show = item.get("show_annotation")
         if show is not None and not isinstance(show, bool):
             errors.append(FieldError(name, f"entity list {number} 'show_annotation' must be a boolean, got {show!r}"))
+    return errors
+
+
+def _check_sample_metadata_values_filter_shape(
+    name: str, spec: Dict[str, Any], value: Any
+) -> List[FieldError]:
+    """Ensure a value is ``{"values": [...], "filters": [{"column": ..., "value": [...]}, ...]}``.
+
+    ``values`` (the column values to keep) must be different, non-empty
+    strings, none of them in ``parameters.ignoredValues``. ``filters`` is only
+    sent when advanced filtering is on, so it may be missing or ``None``;
+    otherwise each filter needs a non-empty string ``column`` and a list of
+    strings ``value``. Other keys are allowed. Values and filters are numbered
+    from 1 in the messages, as a user would count them.
+    """
+    if not isinstance(value, dict) or not isinstance(value.get("values"), list):
+        return [FieldError(name, "must be an object with a 'values' list")]
+
+    params = spec.get("parameters")
+    ignored = params.get("ignoredValues") if isinstance(params, dict) else None
+    ignored = ignored if isinstance(ignored, list) else []
+
+    errors: List[FieldError] = []
+    seen: List[str] = []
+    for number, item in enumerate(value["values"], start=1):
+        if not isinstance(item, str) or item == "":
+            errors.append(FieldError(name, f"value {number} must be a non-empty string, got {item!r}"))
+        elif item in seen:
+            errors.append(FieldError(name, f"value {item!r} is selected more than once"))
+        elif item in ignored:
+            errors.append(FieldError(name, f"value {item!r} is ignored by this field"))
+        else:
+            seen.append(item)
+
+    filters = value.get("filters")
+    if filters is None:
+        return errors
+    if not isinstance(filters, list):
+        errors.append(FieldError(name, f"'filters' must be a list, got {filters!r}"))
+        return errors
+    for number, item in enumerate(filters, start=1):
+        if not isinstance(item, dict):
+            errors.append(FieldError(name, f"filter {number} must be an object with a 'column' and 'value', got {item!r}"))
+            continue
+        column = item.get("column")
+        if not isinstance(column, str) or column == "":
+            errors.append(FieldError(name, f"filter {number} 'column' must be a non-empty string, got {column!r}"))
+        filter_value = item.get("value")
+        if not isinstance(filter_value, list) or not all(isinstance(v, str) for v in filter_value):
+            errors.append(FieldError(name, f"filter {number} 'value' must be a list of strings, got {filter_value!r}"))
     return errors
 
 

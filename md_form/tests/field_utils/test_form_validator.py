@@ -34,6 +34,7 @@ from field_utils import (
     numberrange_field,
     plot_size_field,
     radio_selection_field,
+    sample_metadata_values_filter_field,
     scientific_notation_field,
     select_field,
     is_equal_to_value,
@@ -3569,3 +3570,129 @@ class TestDatasetParamMultiple:
         definition = translate_payload(_Form.model_json_schema())
         assert validate_form(definition, {}).is_valid
         assert validate_form(definition, {"database_selection": None}).is_valid
+
+
+class TestSampleMetadataValuesFilter:
+    """A SampleMetadataValuesFilter value is {"values": [...], "filters": [{"column": ..., "value": [...]}, ...]}."""
+
+    class _Form(MdDatasetBaseModel):
+        subset_values: Optional[dict] = sample_metadata_values_filter_field(
+            column_ref="subset_column",
+            filterable=True,
+            advanced_filtering=True,
+            ignored_values=["Unknown"],
+            name="Keep Values",
+            rules=[is_required()],
+        )
+
+    @pytest.fixture()
+    def definition(self):
+        return translate_payload(self._Form.model_json_schema())
+
+    @pytest.mark.parametrize("value", [
+        {"values": ["C1", "C3"], "filters": []},
+        # filters may be left out, as the MCP tool sends it.
+        {"values": ["C1"]},
+        {"values": ["C1"], "filters": None},
+        {"values": ["C1", "C3"], "filters": [{"column": "batch", "value": ["B1", "B2"]}]},
+        {"values": ["C1"], "filters": [{"column": "batch", "value": []}]},
+        # Other keys are allowed.
+        {"values": ["C1"], "filters": [{"column": "batch", "value": ["B1"], "id": 1}], "extra": True},
+    ])
+    def test_valid(self, definition, value):
+        assert validate_form(definition, {"subset_values": value}).is_valid
+
+    @pytest.mark.parametrize("data", [
+        {},
+        {"subset_values": None},
+        {"subset_values": {}},
+        {"subset_values": {"values": []}},
+        {"subset_values": {"filters": [], "values": []}},
+    ])
+    def test_it_is_required(self, definition, data):
+        assert _errors(validate_form(definition, data)) == {("subset_values", "is required")}
+
+    @pytest.mark.parametrize("value", [
+        ["C1", "C3"],
+        "C1",
+        {"values": "C1"},
+        {"value": ["C1"]},
+        {"filters": [{"column": "batch", "value": ["B1"]}]},
+    ])
+    def test_it_must_be_an_object_with_a_values_list(self, definition, value):
+        assert _errors(validate_form(definition, {"subset_values": value})) == {
+            ("subset_values", "must be an object with a 'values' list"),
+        }
+
+    def test_each_value_must_be_a_non_empty_string(self, definition):
+        value = {"values": ["C1", "", 3, None]}
+        assert _errors(validate_form(definition, {"subset_values": value})) == {
+            ("subset_values", "value 2 must be a non-empty string, got ''"),
+            ("subset_values", "value 3 must be a non-empty string, got 3"),
+            ("subset_values", "value 4 must be a non-empty string, got None"),
+        }
+
+    def test_each_value_is_selected_once(self, definition):
+        value = {"values": ["C1", "C3", "C1"]}
+        assert _errors(validate_form(definition, {"subset_values": value})) == {
+            ("subset_values", "value 'C1' is selected more than once"),
+        }
+
+    def test_ignored_values_cannot_be_selected(self, definition):
+        value = {"values": ["C1", "Unknown"]}
+        assert _errors(validate_form(definition, {"subset_values": value})) == {
+            ("subset_values", "value 'Unknown' is ignored by this field"),
+        }
+
+    @pytest.mark.parametrize("filters", [{"column": "batch", "value": ["B1"]}, "batch"])
+    def test_filters_must_be_a_list(self, definition, filters):
+        value = {"values": ["C1"], "filters": filters}
+        assert _errors(validate_form(definition, {"subset_values": value})) == {
+            ("subset_values", f"'filters' must be a list, got {filters!r}"),
+        }
+
+    def test_each_filter_must_be_an_object(self, definition):
+        value = {"values": ["C1"], "filters": [["batch", ["B1"]]]}
+        assert _errors(validate_form(definition, {"subset_values": value})) == {
+            ("subset_values", "filter 1 must be an object with a 'column' and 'value', got ['batch', ['B1']]"),
+        }
+
+    def test_each_filter_needs_a_column_and_a_list_of_values(self, definition):
+        value = {"values": ["C1"], "filters": [
+            {"column": "batch", "value": ["B1"]},
+            {"column": "", "value": ["B1"]},
+            {"value": ["B1"]},
+            {"column": "batch", "value": "B1"},
+            {"column": "batch", "value": ["B1", 2]},
+            {"column": "batch"},
+        ]}
+        assert _errors(validate_form(definition, {"subset_values": value})) == {
+            ("subset_values", "filter 2 'column' must be a non-empty string, got ''"),
+            ("subset_values", "filter 3 'column' must be a non-empty string, got None"),
+            ("subset_values", "filter 4 'value' must be a list of strings, got 'B1'"),
+            ("subset_values", "filter 5 'value' must be a list of strings, got ['B1', 2]"),
+            ("subset_values", "filter 6 'value' must be a list of strings, got None"),
+        }
+
+    def test_value_and_filter_errors_are_reported_together(self, definition):
+        value = {"values": ["C1", "C1"], "filters": [{"column": "", "value": ["B1"]}]}
+        assert _errors(validate_form(definition, {"subset_values": value})) == {
+            ("subset_values", "value 'C1' is selected more than once"),
+            ("subset_values", "filter 1 'column' must be a non-empty string, got ''"),
+        }
+
+    def test_without_ignored_values_any_value_is_allowed(self):
+        class _Form(MdDatasetBaseModel):
+            subset_values: Optional[dict] = sample_metadata_values_filter_field()
+
+        definition = translate_payload(_Form.model_json_schema())
+        assert validate_form(definition, {"subset_values": {"values": ["Unknown"]}}).is_valid
+
+    def test_optional_field_can_be_unset(self):
+        class _Form(MdDatasetBaseModel):
+            subset_values: Optional[dict] = sample_metadata_values_filter_field()
+
+        definition = translate_payload(_Form.model_json_schema())
+        assert validate_form(definition, {}).is_valid
+        assert validate_form(definition, {"subset_values": None}).is_valid
+        assert validate_form(definition, {"subset_values": {"filters": [], "values": []}}).is_valid

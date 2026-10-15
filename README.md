@@ -129,6 +129,13 @@ knowledge_bases = select_field(
 - `entity_type_field(default=None, datasets_ref="input_datasets")`
   - `default` is an `EntityType` value, e.g. `"protein"`
   - `datasets_ref` names the dataset field it applies to; the datasets selected there must have the chosen entity type
+- `sample_metadata_values_filter_field(column_ref="filter_based_on_condition", datasets_ref="input_datasets",
+  filterable=None, sortable=None, advanced_filtering=None, ignored_values=None)`
+  - Picks values to keep from the sample metadata column chosen in the `column_ref` field
+    (`fieldType: "SampleMetadataValuesFilter"`)
+  - The value is `{"values": ["C1", "C3"], "filters": [{"column": "batch", "value": ["B1"]}]}`: `values` are
+    different, non-empty strings, none of them in `ignored_values`; `filters` (only filled in with
+    `advanced_filtering`) may be left out
 - `dataset_param_multiple_field(datasets_ref="input_datasets", initialise_with_all=True)`
   - Picks any of the databases recorded in the job run params of the dataset chosen in the `datasets_ref` field
     (`fieldType: "DatasetParamMultiple"`): the knowledge bases and analysis set names of its `Databases` params
