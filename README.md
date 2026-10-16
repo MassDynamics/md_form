@@ -114,7 +114,8 @@ knowledge_bases = select_field(
 #### Domain-specific helpers
 
 - `experiment_design_field()`
-- `condition_column_field()`
+- `condition_column_field(datasets_ref="input_datasets")`
+  - `datasets_ref` names the field holding the datasets whose sample metadata columns are offered
 - `condition_comparisons_field()`
   - Picks any number of comparisons from the conditions in this form's own experiment design
     (`fieldType: "PairwiseConditionComparisons"`)

@@ -471,6 +471,15 @@ class TestConditionColumnField:
         assert "datasetsSearch" in field.json_schema_extra["parameters"]
         assert field.json_schema_extra["parameters"]["datasetsSearch"]["ref"] == "input_datasets"
 
+    def test_condition_column_field_with_datasets_ref(self):
+        field = condition_column_field(datasets_ref="dataset_id")
+
+        assert field.json_schema_extra["parameters"]["datasetsSearch"] == {"ref": "dataset_id"}
+
+    def test_condition_column_field_rejects_non_string_datasets_ref(self):
+        with pytest.raises(TypeCheckError):
+            condition_column_field(datasets_ref={"ref": "dataset_id"})
+
 
 class TestConditionColumnMultiSelectField:
     """Test cases for the condition_column_multi_select_field function"""

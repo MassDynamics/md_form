@@ -236,13 +236,18 @@ def experiment_design_field() -> Dict[str, Any]:
 
 
 @field_builder(FieldType.CONDITION_COLUMN)
-def condition_column_field() -> Dict[str, Any]:
-    """Create a condition column field."""
+@typechecked
+def condition_column_field(datasets_ref: str = "input_datasets") -> Dict[str, Any]:
+    """Create a condition column field.
+
+    `datasets_ref` is the name of the field holding the datasets whose
+    sample metadata columns are offered.
+    """
     return {
         "json_schema_extra": {
             "parameters": {
                 "fieldDataType": FieldDataType.STRING,
-                "datasetsSearch": {"ref": "input_datasets"}
+                "datasetsSearch": {"ref": datasets_ref}
             }
         }
     }
