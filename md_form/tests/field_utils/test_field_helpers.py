@@ -9,7 +9,7 @@ from field_utils.field_helpers import (
     intensity_input_dataset_field, intensity_input_datasets_field, datasets_field, entity_type_field,
     sample_metadata_value_field, sample_metadata_columns_field,
     sample_metadata_values_filter_field, entity_lists_field, databases_field, dataset_param_multiple_field,
-    reference_data_file_field, dataset_table_value_field, entity_list_entity_ids_field,
+    reference_data_file_field, dataset_table_value_field, entity_list_entity_ids_field, entity_list_field,
     plot_size_field, radio_selection_field, selection_type_field, scientific_notation_field,
     fold_change_threshold_field, FieldDataType, EntityType
 )
@@ -1607,3 +1607,52 @@ class TestSelectionTypeField:
     def test_selection_type_field_rejects_other_defaults(self, default):
         with pytest.raises(TypeCheckError):
             selection_type_field(default=default)
+
+
+class TestEntityListField:
+    """Test cases for the entity_list_field function"""
+
+    def test_entity_list_field_basic(self):
+        field = entity_list_field()
+
+        assert isinstance(field, FieldInfo)
+        assert field.json_schema_extra["fieldType"] == FieldType.ENTITY_LIST
+        assert "parameters" not in field.json_schema_extra
+        assert "default" not in field.json_schema_extra
+        assert field.default is None
+
+    def test_entity_list_field_with_params(self):
+        field = entity_list_field(type="protein", owner_only=True)
+
+        assert field.json_schema_extra["parameters"] == {"type": "protein", "ownerOnly": True}
+
+    def test_entity_list_field_with_type_ref(self):
+        field = entity_list_field(type={"ref": "entity_type"})
+
+        assert field.json_schema_extra["parameters"] == {"type": {"ref": "entity_type"}}
+
+    def test_entity_list_field_translates(self):
+        class _Form(MdDatasetBaseModel):
+            entity_list_id: Optional[str] = entity_list_field(
+                type={"ref": "entity_type"},
+                name="List",
+                group="Data",
+                rules=[is_required()],
+                when=When.equals("selection_type", "list"),
+            )
+
+        assert translate_payload(_Form.model_json_schema())["entity_list_id"] == {
+            "default": None,
+            "fieldType": "ProteinList",
+            "group": "Data",
+            "md-field-order": 0,
+            "name": "List",
+            "parameters": {"type": {"ref": "entity_type"}},
+            "rules": [{"name": "is_required"}],
+            "when": When.equals("selection_type", "list").as_dict(),
+        }
+
+    @pytest.mark.parametrize("kwargs", [{"type": "mouse"}, {"type": 1}, {"owner_only": "yes"}])
+    def test_entity_list_field_rejects_wrong_types(self, kwargs):
+        with pytest.raises(TypeCheckError):
+            entity_list_field(**kwargs)

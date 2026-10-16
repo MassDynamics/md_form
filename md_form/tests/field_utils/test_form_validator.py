@@ -24,6 +24,7 @@ from field_utils import (
     fold_change_threshold_field,
     intensity_input_dataset_field,
     intensity_input_datasets_field,
+    entity_list_field,
     entity_lists_field,
     has_multiple_column_values_from_field_in_table,
     has_unique_column_values_in_table,
@@ -3729,3 +3730,39 @@ class TestSelectionType:
 
     def test_not_required_without_entity_type(self, definition):
         assert validate_form(definition, {}).is_valid
+
+
+class TestEntityList:
+    """An entity list value is the id of the single selected list."""
+
+    class _Form(MdDatasetBaseModel):
+        entity_type: Optional[str] = radio_selection_field(options=["protein", "peptide"])
+        selection_type: Optional[str] = selection_type_field()
+        entity_list_id: Optional[str] = entity_list_field(
+            type={"ref": "entity_type"},
+            rules=[is_required()],
+            when=When.equals("selection_type", "list"),
+        )
+
+    @pytest.fixture()
+    def definition(self):
+        return translate_payload(self._Form.model_json_schema())
+
+    def test_valid_list_id(self, definition):
+        data = {"entity_type": "protein", "selection_type": "list", "entity_list_id": "1f0c6a2e-list"}
+        assert validate_form(definition, data).is_valid
+
+    @pytest.mark.parametrize("value", [1, True, ["abc"], {"id": "abc"}])
+    def test_must_be_a_list_id(self, definition, value):
+        data = {"entity_type": "protein", "selection_type": "list", "entity_list_id": value}
+        assert _errors(validate_form(definition, data)) == {
+            ("entity_list_id", f"must be an entity list id, got {value!r}"),
+        }
+
+    @pytest.mark.parametrize("value", [None, ""])
+    def test_required_when_selection_type_is_list(self, definition, value):
+        data = {"entity_type": "protein", "selection_type": "list", "entity_list_id": value}
+        assert _errors(validate_form(definition, data)) == {("entity_list_id", "is required")}
+
+    def test_not_required_when_selection_type_is_selection(self, definition):
+        assert validate_form(definition, {"entity_type": "protein", "selection_type": "selection"}).is_valid

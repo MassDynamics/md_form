@@ -128,6 +128,9 @@ _CONDITION_COMPARISON_FIELD_TYPE = FieldType.CONDITION_COMPARISON.value  # "Cond
 # fieldType of a list of selected entity lists (see field_helpers.entity_lists_field).
 _ENTITY_LISTS_FIELD_TYPE = FieldType.ENTITY_LISTS.value  # "ProteinLists"
 
+# fieldType of a single selected entity list (see field_helpers.entity_list_field).
+_ENTITY_LIST_FIELD_TYPE = FieldType.ENTITY_LIST.value  # "ProteinList"
+
 # fieldType of a control-variables list (see field_helpers.control_variables_field).
 _CONTROL_VARIABLES_FIELD_TYPE = FieldType.CONTROL_VARIABLES.value  # "PairwiseControlVariables"
 
@@ -525,6 +528,10 @@ def _validate_field(name: str, spec: Dict[str, Any], data: Dict[str, Any]) -> Li
         shape_errors = _check_entity_lists_shape(name, value)
         if shape_errors:
             return shape_errors
+
+    # An entity-list value is the selected list's id.
+    if spec.get("fieldType") == _ENTITY_LIST_FIELD_TYPE and not isinstance(value, str):
+        return [FieldError(name, f"must be an entity list id, got {value!r}")]
 
     # A sample-metadata-values-filter value is {"values": [...], "filters":
     # [...]}. Each malformed value and filter is reported.

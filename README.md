@@ -157,9 +157,14 @@ knowledge_bases = select_field(
   - The value is a float of at least 1 (an int such as `2` counts, as JSON sends `2.0` as `2`);
     the frontend also shows its log2 ratio
   - A `default` below 1 raises `ValueError`
+- `entity_list_field(type=None, owner_only=None)`
+  - Picks a single entity list (`fieldType: "ProteinList"`); the value is the list's id, a non-empty string
+  - `type` filters the lists by entity type; `owner_only=True` offers only the user's own lists
+  - Unlike `entity_list_entity_ids_field` the value is the id rather than the list's entity ids, and unlike
+    `entity_lists_field` only one list is picked
 - `EntityType` is `Literal["protein", "peptide", "gene", "metabolite", "ptm", "precursor"]`. It is also taken by
   `intensity_input_dataset_field`, `datasets_field` (`entity_types`), and by `entity_list_entity_ids_field`,
-  `entity_lists_field` (`type`) and `databases_field` (`entity_type`), which also accept a `{"ref": "<field>"}` dict.
+  `entity_list_field`, `entity_lists_field` (`type`) and `databases_field` (`entity_type`), which also accept a `{"ref": "<field>"}` dict.
   Any other string is rejected.
 
 **Example:**

@@ -502,6 +502,35 @@ def entity_list_entity_ids_field(
     return result
 
 
+@field_builder(FieldType.ENTITY_LIST)
+@typechecked
+def entity_list_field(
+    type: Optional[Union[EntityType, Dict[str, Any]]] = None,
+    owner_only: Optional[bool] = None,
+) -> Dict[str, Any]:
+    """Pick a single entity list; the field's value is that list's id.
+
+    `type` is the entity type (e.g. "protein", "peptide", "gene") used to
+    filter the available lists. Pass an EntityType value, or a `{"ref": "<field>"}`
+    dict to bind to another field (commonly the entity_type field). When
+    `owner_only` is true only the user's own lists are offered. Each parameter
+    is omitted when unset so the frontend applies its own default.
+
+    Unlike `entity_list_entity_ids_field` the value is the list id, not its
+    entity ids, and unlike `entity_lists_field` only one list is picked.
+    """
+    parameters: Dict[str, Any] = {}
+    if type is not None:
+        parameters["type"] = type
+    if owner_only is not None:
+        parameters["ownerOnly"] = owner_only
+
+    result: Dict[str, Any] = {"json_schema_extra": {}}
+    if parameters:
+        result["json_schema_extra"]["parameters"] = parameters
+    return result
+
+
 @field_builder(FieldType.SAMPLE_METADATA_COLUMNS)
 def sample_metadata_columns_field(
     datasets_ref: str = "input_datasets",
