@@ -536,6 +536,37 @@ def entity_list_field(
     return result
 
 
+@field_builder(FieldType.ENTITY_TITLE)
+@typechecked
+def entity_title_field(
+    entity_type: Optional[Union[EntityType, Dict[str, Any]]] = None,
+    datasets_ref: Optional[str] = None,
+    include_hierarchical_entities: Optional[bool] = None,
+) -> Dict[str, Any]:
+    """Pick the column used to label entities, such as "protein_name" or "gene_name".
+
+    The columns offered depend on the entity type, which comes from
+    `entity_type` (an EntityType value, or a `{"ref": "<field>"}` dict, commonly
+    the entity_type field) or else from the datasets in the field named by
+    `datasets_ref`; with neither the frontend uses "protein".
+    `include_hierarchical_entities` also offers the parent entity type's
+    columns (protein's for a peptide or ptm). Each parameter is omitted when
+    unset so the frontend applies its own default.
+    """
+    parameters: Dict[str, Any] = {}
+    if entity_type is not None:
+        parameters["entityType"] = entity_type
+    if datasets_ref is not None:
+        parameters["datasetsSearch"] = {"ref": datasets_ref}
+    if include_hierarchical_entities is not None:
+        parameters["includeHierarchicalEntities"] = include_hierarchical_entities
+
+    result: Dict[str, Any] = {"json_schema_extra": {}}
+    if parameters:
+        result["json_schema_extra"]["parameters"] = parameters
+    return result
+
+
 @field_builder(FieldType.SAMPLE_METADATA_COLUMNS)
 def sample_metadata_columns_field(
     datasets_ref: str = "input_datasets",

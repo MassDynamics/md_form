@@ -131,6 +131,27 @@ _ENTITY_LISTS_FIELD_TYPE = FieldType.ENTITY_LISTS.value  # "ProteinLists"
 # fieldType of a single selected entity list (see field_helpers.entity_list_field).
 _ENTITY_LIST_FIELD_TYPE = FieldType.ENTITY_LIST.value  # "ProteinList"
 
+# fieldType of the column used to label entities (see field_helpers.entity_title_field).
+_ENTITY_TITLE_FIELD_TYPE = FieldType.ENTITY_TITLE.value  # "EntityTitle"
+
+# The title columns offered for each entity type, mirroring the frontend's
+# entity_types/*.js columnOptions, and the entity types whose titles are also
+# offered when hierarchical entities are included (ENTITY_HIERARCHY).
+_ENTITY_TITLE_COLUMNS: Dict[str, List[str]] = {
+    "protein": ["protein_name", "gene_name"],
+    "peptide": ["modified_sequence", "gene_name"],
+    "gene": ["gene_name", "gene_id"],
+    "metabolite": ["metabolite_id"],
+    "ptm": ["ptm_protein", "gene_name"],
+}
+_ENTITY_TITLE_HIERARCHY: Dict[str, List[str]] = {
+    "protein": ["protein"],
+    "peptide": ["protein", "peptide"],
+    "gene": ["gene"],
+    "metabolite": ["metabolite"],
+    "ptm": ["protein", "ptm"],
+}
+
 # fieldType of a control-variables list (see field_helpers.control_variables_field).
 _CONTROL_VARIABLES_FIELD_TYPE = FieldType.CONTROL_VARIABLES.value  # "PairwiseControlVariables"
 
@@ -532,6 +553,12 @@ def _validate_field(name: str, spec: Dict[str, Any], data: Dict[str, Any]) -> Li
     # An entity-list value is the selected list's id.
     if spec.get("fieldType") == _ENTITY_LIST_FIELD_TYPE and not isinstance(value, str):
         return [FieldError(name, f"must be an entity list id, got {value!r}")]
+
+    # An entity-title value is one of the title columns of its entity type.
+    if spec.get("fieldType") == _ENTITY_TITLE_FIELD_TYPE:
+        title_errors = _check_entity_title(name, spec, value, data)
+        if title_errors:
+            return title_errors
 
     # A sample-metadata-values-filter value is {"values": [...], "filters":
     # [...]}. Each malformed value and filter is reported.
@@ -1022,6 +1049,34 @@ def _check_entity_lists_shape(name: str, value: Any) -> List[FieldError]:
         if show is not None and not isinstance(show, bool):
             errors.append(FieldError(name, f"entity list {number} 'show_annotation' must be a boolean, got {show!r}"))
     return errors
+
+
+def _check_entity_title(name: str, spec: Dict[str, Any], value: Any, data: Dict[str, Any]) -> List[FieldError]:
+    """Ensure an entity-title value is a title column of its entity type.
+
+    The entity type is ``parameters.entityType``, either an entity type or a
+    ``{"ref": "<field>"}`` to the field holding one. Like the frontend, with
+    neither it nor ``parameters.datasetsSearch`` the type is "protein". When
+    the type can't be worked out (it comes from the datasets, or is one the
+    frontend has no titles for) only the value's type is checked.
+    """
+    if not isinstance(value, str):
+        return [FieldError(name, f"must be an entity title column, got {value!r}")]
+    params = spec.get("parameters") or {}
+    entity_type = params.get("entityType")
+    if isinstance(entity_type, dict):
+        entity_type = data.get(entity_type.get("ref"))
+    if _is_absent(entity_type) and "datasetsSearch" not in params:
+        entity_type = "protein"
+    if not isinstance(entity_type, str) or entity_type not in _ENTITY_TITLE_COLUMNS:
+        return []
+    entity_types = _ENTITY_TITLE_HIERARCHY[entity_type] if params.get("includeHierarchicalEntities") else [entity_type]
+    allowed: List[str] = []
+    for t in entity_types:
+        allowed.extend(c for c in _ENTITY_TITLE_COLUMNS[t] if c not in allowed)
+    if value not in allowed:
+        return [FieldError(name, f"{value!r} is not a title of entity type {entity_type!r}, allowed titles are {allowed}")]
+    return []
 
 
 def _check_sample_metadata_values_filter_shape(

@@ -25,6 +25,7 @@ from field_utils import (
     intensity_input_dataset_field,
     intensity_input_datasets_field,
     entity_list_field,
+    entity_title_field,
     entity_lists_field,
     has_multiple_column_values_from_field_in_table,
     has_unique_column_values_in_table,
@@ -3766,3 +3767,72 @@ class TestEntityList:
 
     def test_not_required_when_selection_type_is_selection(self, definition):
         assert validate_form(definition, {"entity_type": "protein", "selection_type": "selection"}).is_valid
+
+
+class TestEntityTitle:
+    """An entity title value is one of its entity type's title columns."""
+
+    class _Form(MdDatasetBaseModel):
+        entity_type: Optional[str] = radio_selection_field(options=["protein", "peptide", "ptm", "precursor"])
+        title_field: Optional[str] = entity_title_field(entity_type={"ref": "entity_type"})
+        hierarchical_title: Optional[str] = entity_title_field(
+            entity_type={"ref": "entity_type"}, include_hierarchical_entities=True,
+        )
+        default_title: Optional[str] = entity_title_field()
+        dataset_title: Optional[str] = entity_title_field(datasets_ref="dataset_id")
+
+    @pytest.fixture()
+    def definition(self):
+        return translate_payload(self._Form.model_json_schema())
+
+    @pytest.mark.parametrize(
+        "entity_type, value",
+        [("protein", "protein_name"), ("protein", "gene_name"), ("peptide", "modified_sequence"), ("ptm", "ptm_protein")],
+    )
+    def test_valid_title(self, definition, entity_type, value):
+        assert validate_form(definition, {"entity_type": entity_type, "title_field": value}).is_valid
+
+    def test_title_of_another_entity_type(self, definition):
+        assert _errors(validate_form(definition, {"entity_type": "peptide", "title_field": "protein_name"})) == {
+            ("title_field", "'protein_name' is not a title of entity type 'peptide', "
+                            "allowed titles are ['modified_sequence', 'gene_name']"),
+        }
+
+    @pytest.mark.parametrize(
+        "entity_type, value",
+        [("peptide", "protein_name"), ("peptide", "modified_sequence"), ("ptm", "protein_name")],
+    )
+    def test_hierarchical_titles(self, definition, entity_type, value):
+        assert validate_form(definition, {"entity_type": entity_type, "hierarchical_title": value}).is_valid
+
+    def test_composite_title_is_not_allowed(self, definition):
+        assert _errors(validate_form(
+            definition, {"entity_type": "peptide", "hierarchical_title": "gene_name_modified_sequence"}
+        )) == {
+            ("hierarchical_title", "'gene_name_modified_sequence' is not a title of entity type 'peptide', "
+                                   "allowed titles are ['protein_name', 'gene_name', 'modified_sequence']"),
+        }
+
+    def test_without_entity_type_defaults_to_protein(self, definition):
+        assert validate_form(definition, {"default_title": "protein_name"}).is_valid
+        assert _errors(validate_form(definition, {"default_title": "gene_id"})) == {
+            ("default_title", "'gene_id' is not a title of entity type 'protein', "
+                              "allowed titles are ['protein_name', 'gene_name']"),
+        }
+
+    def test_entity_type_from_datasets_is_not_checked(self, definition):
+        assert validate_form(definition, {"dataset_title": "anything"}).is_valid
+
+    def test_entity_type_that_is_not_a_string_is_not_checked(self, definition):
+        assert _errors(validate_form(definition, {"entity_type": ["protein"], "title_field": "anything"})) == {
+            ("entity_type", "must be a single option, not a list"),
+        }
+
+    def test_entity_type_without_titles_is_not_checked(self, definition):
+        assert validate_form(definition, {"entity_type": "precursor", "title_field": "anything"}).is_valid
+
+    @pytest.mark.parametrize("value", [1, True, ["gene_name"]])
+    def test_must_be_a_string(self, definition, value):
+        assert _errors(validate_form(definition, {"entity_type": "protein", "title_field": value})) == {
+            ("title_field", f"must be an entity title column, got {value!r}"),
+        }

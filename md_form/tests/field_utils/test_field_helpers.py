@@ -9,7 +9,7 @@ from field_utils.field_helpers import (
     intensity_input_dataset_field, intensity_input_datasets_field, datasets_field, entity_type_field,
     sample_metadata_value_field, sample_metadata_columns_field,
     sample_metadata_values_filter_field, entity_lists_field, databases_field, dataset_param_multiple_field,
-    reference_data_file_field, dataset_table_value_field, entity_list_entity_ids_field, entity_list_field,
+    reference_data_file_field, dataset_table_value_field, entity_list_entity_ids_field, entity_list_field, entity_title_field,
     plot_size_field, radio_selection_field, selection_type_field, scientific_notation_field,
     fold_change_threshold_field, FieldDataType, EntityType
 )
@@ -1665,3 +1665,53 @@ class TestEntityListField:
     def test_entity_list_field_rejects_wrong_types(self, kwargs):
         with pytest.raises(TypeCheckError):
             entity_list_field(**kwargs)
+
+
+class TestEntityTitleField:
+    """Test cases for the entity_title_field function"""
+
+    def test_entity_title_field_basic(self):
+        field = entity_title_field()
+
+        assert isinstance(field, FieldInfo)
+        assert field.json_schema_extra["fieldType"] == FieldType.ENTITY_TITLE
+        assert "parameters" not in field.json_schema_extra
+        assert field.default is None
+
+    def test_entity_title_field_with_params(self):
+        field = entity_title_field(
+            entity_type="peptide",
+            datasets_ref="dataset_id",
+            include_hierarchical_entities=True,
+        )
+
+        assert field.json_schema_extra["parameters"] == {
+            "entityType": "peptide",
+            "datasetsSearch": {"ref": "dataset_id"},
+            "includeHierarchicalEntities": True,
+        }
+
+    def test_entity_title_field_translates(self):
+        class _Form(MdDatasetBaseModel):
+            title_field: Optional[str] = entity_title_field(
+                entity_type={"ref": "entity_type"},
+                name="Entity label",
+                group="Layout",
+            )
+
+        assert translate_payload(_Form.model_json_schema())["title_field"] == {
+            "default": None,
+            "fieldType": "EntityTitle",
+            "group": "Layout",
+            "md-field-order": 0,
+            "name": "Entity label",
+            "parameters": {"entityType": {"ref": "entity_type"}},
+        }
+
+    @pytest.mark.parametrize(
+        "kwargs",
+        [{"entity_type": "mouse"}, {"datasets_ref": {"ref": "x"}}, {"include_hierarchical_entities": "yes"}],
+    )
+    def test_entity_title_field_rejects_wrong_types(self, kwargs):
+        with pytest.raises(TypeCheckError):
+            entity_title_field(**kwargs)

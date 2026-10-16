@@ -163,9 +163,17 @@ knowledge_bases = select_field(
   - `type` filters the lists by entity type; `owner_only=True` offers only the user's own lists
   - Unlike `entity_list_entity_ids_field` the value is the id rather than the list's entity ids, and unlike
     `entity_lists_field` only one list is picked
+- `entity_title_field(entity_type=None, datasets_ref=None, include_hierarchical_entities=None)`
+  - Picks the column used to label entities (`fieldType: "EntityTitle"`); the value is a column name such as `"protein_name"`
+  - The entity type comes from `entity_type` (a value or a `{"ref": "<field>"}` dict) or else the datasets in
+    `datasets_ref`; with neither the frontend uses `"protein"`
+  - The value must be one of that entity type's title columns: protein `protein_name`/`gene_name`, peptide
+    `modified_sequence`/`gene_name`, gene `gene_name`/`gene_id`, metabolite `metabolite_id`, ptm `ptm_protein`/`gene_name`
+  - `include_hierarchical_entities=True` also allows the parent type's columns (protein's for peptide and ptm)
+  - When the entity type comes from the datasets, only that the value is a string is checked
 - `EntityType` is `Literal["protein", "peptide", "gene", "metabolite", "ptm", "precursor"]`. It is also taken by
   `intensity_input_dataset_field`, `datasets_field` (`entity_types`), and by `entity_list_entity_ids_field`,
-  `entity_list_field`, `entity_lists_field` (`type`) and `databases_field` (`entity_type`), which also accept a `{"ref": "<field>"}` dict.
+  `entity_list_field`, `entity_lists_field` (`type`), `entity_title_field` (`entity_type`) and `databases_field` (`entity_type`), which also accept a `{"ref": "<field>"}` dict.
   Any other string is rejected.
 
 **Example:**
