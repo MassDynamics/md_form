@@ -105,6 +105,9 @@ knowledge_bases = select_field(
 - `radio_selection_field(default=None, options=None, inline=None)`
   - Picks one option, shown as radio buttons (`fieldType: "RadioSelectionField"`)
   - `options` works as in `select_field`; `inline=True` lays the buttons out on one line
+- `selection_type_field(default="selection", inline=None)`
+  - A `radio_selection_field` that always has the options `{"name": "Use Selection", "value": "selection"}` and `{"name": "Use List", "value": "list"}`
+  - Emits `parameters.selectionType: true` so the frontend can tell it apart from an ordinary radio
 - `numberrange_field(field_data_type, default=None, ge=None, le=None, interval=None)`
   - `field_data_type` must always be passed, as for `number_field`
 

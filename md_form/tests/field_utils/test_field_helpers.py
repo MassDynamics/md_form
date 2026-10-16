@@ -10,13 +10,14 @@ from field_utils.field_helpers import (
     sample_metadata_value_field, sample_metadata_columns_field,
     sample_metadata_values_filter_field, entity_lists_field, databases_field, dataset_param_multiple_field,
     reference_data_file_field, dataset_table_value_field, entity_list_entity_ids_field,
-    plot_size_field, radio_selection_field, scientific_notation_field,
+    plot_size_field, radio_selection_field, selection_type_field, scientific_notation_field,
     fold_change_threshold_field, FieldDataType, EntityType
 )
 from field_utils.field_types import FieldType
 from field_utils.md_dataset_base_model import MdDatasetBaseModel
 from field_utils.form_validator import validate_form
 from field_utils.rules_builder import is_required
+from field_utils.when import When
 from translate_payload import translate_payload
 
 
@@ -1537,3 +1538,72 @@ class TestDatasetParamMultipleField:
     def test_dataset_param_multiple_field_rejects_wrong_types(self, kwargs):
         with pytest.raises(TypeCheckError):
             dataset_param_multiple_field(**kwargs)
+
+
+class TestSelectionTypeField:
+    """Test cases for the selection_type_field function"""
+
+    OPTIONS = [
+        {"name": "Use Selection", "value": "selection"},
+        {"name": "Use List", "value": "list"},
+    ]
+
+    def test_selection_type_field_basic(self):
+        field = selection_type_field()
+
+        assert isinstance(field, FieldInfo)
+        assert field.json_schema_extra["fieldType"] == FieldType.RADIO_SELECTION
+        assert field.json_schema_extra["parameters"] == {"options": self.OPTIONS, "selectionType": True}
+        assert field.json_schema_extra["default"] == "selection"
+        assert field.default == "selection"
+
+    def test_selection_type_field_with_default(self):
+        field = selection_type_field(default="list")
+
+        assert field.json_schema_extra["default"] == "list"
+        assert field.default == "list"
+
+    def test_selection_type_field_without_default(self):
+        field = selection_type_field(default=None)
+
+        assert "default" not in field.json_schema_extra
+        assert field.default is None
+
+    def test_selection_type_field_with_inline(self):
+        field = selection_type_field(inline=True)
+
+        assert field.json_schema_extra["parameters"] == {
+            "options": self.OPTIONS,
+            "selectionType": True,
+            "inline": True,
+        }
+
+    def test_selection_type_field_options_are_not_shared(self):
+        selection_type_field().json_schema_extra["parameters"]["options"][0]["name"] = "changed"
+
+        assert selection_type_field().json_schema_extra["parameters"]["options"] == self.OPTIONS
+
+    def test_selection_type_field_translates(self):
+        class _Form(MdDatasetBaseModel):
+            selection_type: Optional[str] = selection_type_field(
+                name="Selection Type",
+                group="Data",
+                rules=[is_required()],
+                when=When.is_present("entity_type"),
+            )
+
+        assert translate_payload(_Form.model_json_schema())["selection_type"] == {
+            "default": "selection",
+            "fieldType": "RadioSelectionField",
+            "group": "Data",
+            "md-field-order": 0,
+            "name": "Selection Type",
+            "parameters": {"options": self.OPTIONS, "selectionType": True},
+            "rules": [{"name": "is_required"}],
+            "when": When.is_present("entity_type").as_dict(),
+        }
+
+    @pytest.mark.parametrize("default", ["all", "Selection", 1])
+    def test_selection_type_field_rejects_other_defaults(self, default):
+        with pytest.raises(TypeCheckError):
+            selection_type_field(default=default)

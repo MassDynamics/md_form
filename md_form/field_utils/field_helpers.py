@@ -168,6 +168,38 @@ def radio_selection_field(
     return result
 
 
+SELECTION_TYPE_OPTIONS = [
+    {"name": "Use Selection", "value": "selection"},
+    {"name": "Use List", "value": "list"},
+]
+
+
+@field_builder(FieldType.RADIO_SELECTION)
+@typechecked
+def selection_type_field(
+    default: Optional[Literal["selection", "list"]] = "selection",
+    inline: Optional[bool] = None,
+) -> Dict[str, Any]:
+    """Create a selection type field: a radio choosing "selection" or "list".
+
+    Always has the options "Use Selection" and "Use List", and emits
+    `parameters.selectionType: true` so the frontend can tell it apart from an
+    ordinary radio.
+    """
+    parameters: Dict[str, Any] = {
+        "options": [dict(option) for option in SELECTION_TYPE_OPTIONS],
+        "selectionType": True,
+    }
+    if inline is not None:
+        parameters["inline"] = inline
+
+    result: Dict[str, Any] = {"json_schema_extra": {"parameters": parameters}}
+    if default is not None:
+        result["json_schema_extra"]["default"] = default
+
+    return result
+
+
 @field_builder(FieldType.MULTIPLE)
 @typechecked
 def multiple_select_field(

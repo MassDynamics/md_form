@@ -37,6 +37,7 @@ from field_utils import (
     sample_metadata_values_filter_field,
     scientific_notation_field,
     select_field,
+    selection_type_field,
     is_equal_to_value,
     is_not_equal_to_value,
 )
@@ -3696,3 +3697,35 @@ class TestSampleMetadataValuesFilter:
         assert validate_form(definition, {}).is_valid
         assert validate_form(definition, {"subset_values": None}).is_valid
         assert validate_form(definition, {"subset_values": {"filters": [], "values": []}}).is_valid
+
+
+class TestSelectionType:
+    """A selection type is a radio that always offers "selection" and "list"."""
+
+    class _Form(MdDatasetBaseModel):
+        entity_type: Optional[str] = radio_selection_field(options=["protein", "peptide"])
+        selection_type: Optional[str] = selection_type_field(
+            rules=[is_required()], when=When.is_present("entity_type"),
+        )
+
+    @pytest.fixture()
+    def definition(self):
+        return translate_payload(self._Form.model_json_schema())
+
+    @pytest.mark.parametrize("value", ["selection", "list"])
+    def test_valid_option(self, definition, value):
+        assert validate_form(definition, {"entity_type": "protein", "selection_type": value}).is_valid
+
+    @pytest.mark.parametrize("value", ["all", "Use List", 1])
+    def test_invalid_option(self, definition, value):
+        assert _errors(validate_form(definition, {"entity_type": "protein", "selection_type": value})) == {
+            ("selection_type", f"{value!r} is not one of the allowed options ['selection', 'list']"),
+        }
+
+    def test_required_when_entity_type_is_present(self, definition):
+        assert _errors(validate_form(definition, {"entity_type": "protein"})) == {
+            ("selection_type", "is required"),
+        }
+
+    def test_not_required_without_entity_type(self, definition):
+        assert validate_form(definition, {}).is_valid
