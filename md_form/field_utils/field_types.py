@@ -27,6 +27,7 @@ class FieldType(str, Enum):
     DATABASES = "Databases"
     REFERENCE_DATA_FILE = "ReferenceDataFile"
     DATASET_TABLE_VALUE = "DatasetTableValue"
+    DATASET_TABLE_COLUMN = "DatasetTableColumn"
     PLOT_SIZE = "PlotSize"
     RADIO_SELECTION = "RadioSelectionField"
     SCIENTIFIC_NOTATION = "ScientificNotation"

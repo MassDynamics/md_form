@@ -9,7 +9,7 @@ from field_utils.field_helpers import (
     intensity_input_dataset_field, intensity_input_datasets_field, datasets_field, entity_type_field,
     sample_metadata_value_field, sample_metadata_columns_field,
     sample_metadata_values_filter_field, entity_lists_field, databases_field, dataset_param_multiple_field,
-    reference_data_file_field, dataset_table_value_field, entity_list_entity_ids_field, entity_list_field, entity_title_field,
+    reference_data_file_field, dataset_table_value_field, dataset_table_column_field, entity_list_entity_ids_field, entity_list_field, entity_title_field,
     plot_size_field, radio_selection_field, selection_type_field, scientific_notation_field,
     fold_change_threshold_field, FieldDataType, EntityType
 )
@@ -1170,6 +1170,45 @@ class TestDatasetTableValueField:
             dataset_table_value_field(table_name=123, column_name="PTMName")
 
 
+class TestDatasetTableColumnField:
+    """Test cases for the dataset_table_column_field function"""
+
+    def test_dataset_table_column_field_basic(self):
+        field = dataset_table_column_field(table_name="Protein_Metadata")
+
+        assert isinstance(field, FieldInfo)
+        assert field.json_schema_extra["fieldType"] == FieldType.DATASET_TABLE_COLUMN
+        assert field.json_schema_extra["parameters"] == {
+            "datasetsSearch": {"ref": "input_datasets"},
+            "datasetTableName": "Protein_Metadata",
+        }
+
+    def test_dataset_table_column_field_custom_datasets_ref(self):
+        field = dataset_table_column_field(table_name="Protein_Metadata", datasets_ref="dataset_id")
+
+        assert field.json_schema_extra["parameters"]["datasetsSearch"]["ref"] == "dataset_id"
+
+    def test_dataset_table_column_field_with_common_params(self):
+        field = dataset_table_column_field(
+            table_name="Protein_Metadata",
+            name="Protein Metadata Column",
+            description="A column of the protein table, such as pI.",
+            group="Plot Configuration",
+        )
+
+        assert field.json_schema_extra["name"] == "Protein Metadata Column"
+        assert field.json_schema_extra["description"] == "A column of the protein table, such as pI."
+        assert field.json_schema_extra["group"] == "Plot Configuration"
+
+    def test_dataset_table_column_field_requires_table_name(self):
+        with pytest.raises(TypeError):
+            dataset_table_column_field()
+
+    def test_dataset_table_column_field_rejects_non_string_table_name(self):
+        with pytest.raises(TypeCheckError):
+            dataset_table_column_field(table_name=123)
+
+
 class TestFieldHelpersIntegration:
     """Integration tests for field helpers"""
 
@@ -1198,6 +1237,7 @@ class TestFieldHelpersIntegration:
             databases_field(),
             reference_data_file_field(),
             dataset_table_value_field(table_name="PTM_Metadata", column_name="PTMName"),
+            dataset_table_column_field(table_name="Protein_Metadata"),
         ]
         
         for field in field_functions:

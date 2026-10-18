@@ -171,6 +171,10 @@ knowledge_bases = select_field(
     `modified_sequence`/`gene_name`, gene `gene_name`/`gene_id`, metabolite `metabolite_id`, ptm `ptm_protein`/`gene_name`
   - `include_hierarchical_entities=True` also allows the parent type's columns (protein's for peptide and ptm)
   - When the entity type comes from the datasets, only that the value is a string is checked
+- `dataset_table_column_field(table_name, datasets_ref="input_datasets")`
+  - Picks one column of a dataset's table (`fieldType: "DatasetTableColumn"`); the value is a column name such as `"pI"`
+  - The frontend lists every column of `table_name` in the dataset chosen in the `datasets_ref` field
+  - Validation checks the value is a string
 - `EntityType` is `Literal["protein", "peptide", "gene", "metabolite", "ptm", "precursor"]`. It is also taken by
   `intensity_input_dataset_field`, `datasets_field` (`entity_types`), and by `entity_list_entity_ids_field`,
   `entity_list_field`, `entity_lists_field` (`type`), `entity_title_field` (`entity_type`) and `databases_field` (`entity_type`), which also accept a `{"ref": "<field>"}` dict.
