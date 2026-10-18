@@ -19,7 +19,7 @@ from field_utils import (
     condition_comparison_field,
     control_variables_field,
     dataset_param_multiple_field,
-    dataset_table_column_field,
+    entity_metadata_column_field,
     dataset_table_value_field,
     experiment_design_field,
     fold_change_threshold_field,
@@ -3839,11 +3839,11 @@ class TestEntityTitle:
         }
 
 
-class TestDatasetTableColumn:
-    """A dataset table column value is the name of one column of the table."""
+class TestEntityMetadataColumn:
+    """An entity metadata column value is the name of one column of the table."""
 
     class _Form(MdDatasetBaseModel):
-        colour_column: Optional[str] = dataset_table_column_field(
+        colour_column: Optional[str] = entity_metadata_column_field(
             table_name="Protein_Metadata", rules=[is_required()],
         )
 

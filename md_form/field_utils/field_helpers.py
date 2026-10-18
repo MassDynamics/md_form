@@ -736,13 +736,13 @@ def dataset_table_value_field(
     return {"json_schema_extra": {"parameters": parameters}}
 
 
-@field_builder(FieldType.DATASET_TABLE_COLUMN)
+@field_builder(FieldType.ENTITY_METADATA_COLUMN)
 @typechecked
-def dataset_table_column_field(
+def entity_metadata_column_field(
     table_name: str,
     datasets_ref: str = "input_datasets",
 ) -> Dict[str, Any]:
-    """Pick one column of a dataset's table, such as "pI" of "Protein_Metadata".
+    """Pick one column of an entity metadata table, such as "pI" of "Protein_Metadata".
 
     The frontend offers every column of `table_name` (`datasetTableName`) in
     the dataset chosen in the `datasets_ref` field. The value is the column

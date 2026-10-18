@@ -49,7 +49,7 @@ class TestFieldType:
             "PairwiseControlVariables", "Datasets", "EntityType", "Multiple",
             "DatasetSampleMetadataValue", "DatasetSampleMetadataColumns",
             "SampleMetadataValuesFilter", "EntityListEntityIds", "ProteinLists", "ProteinList", "EntityTitle",
-            "Databases", "ReferenceDataFile", "DatasetTableValue", "DatasetTableColumn", "PlotSize",
+            "Databases", "ReferenceDataFile", "DatasetTableValue", "EntityMetadataColumn", "PlotSize",
             "RadioSelectionField", "ScientificNotation", "FoldChangeThreshold",
             "ConditionComparison", "DatasetParamMultiple",
         ]
