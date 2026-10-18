@@ -19,6 +19,7 @@ from field_utils import (
     condition_comparison_field,
     control_variables_field,
     dataset_param_multiple_field,
+    entity_metadata_column_field,
     dataset_table_value_field,
     experiment_design_field,
     fold_change_threshold_field,
@@ -3836,3 +3837,29 @@ class TestEntityTitle:
         assert _errors(validate_form(definition, {"entity_type": "protein", "title_field": value})) == {
             ("title_field", f"must be an entity title column, got {value!r}"),
         }
+
+
+class TestEntityMetadataColumn:
+    """An entity metadata column value is the name of one column of the table."""
+
+    class _Form(MdDatasetBaseModel):
+        colour_column: Optional[str] = entity_metadata_column_field(
+            table_name="Protein_Metadata", rules=[is_required()],
+        )
+
+    @pytest.fixture()
+    def definition(self):
+        return translate_payload(self._Form.model_json_schema())
+
+    def test_valid_column(self, definition):
+        assert validate_form(definition, {"colour_column": "pI"}).is_valid
+
+    @pytest.mark.parametrize("value", [1, True, ["pI"], {"name": "pI"}])
+    def test_must_be_a_column_name(self, definition, value):
+        assert _errors(validate_form(definition, {"colour_column": value})) == {
+            ("colour_column", f"must be a column name, got {value!r}"),
+        }
+
+    @pytest.mark.parametrize("value", [None, ""])
+    def test_required(self, definition, value):
+        assert _errors(validate_form(definition, {"colour_column": value})) == {("colour_column", "is required")}

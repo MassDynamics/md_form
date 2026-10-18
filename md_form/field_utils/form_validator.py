@@ -97,6 +97,9 @@ _NUMBER_FIELD_TYPES = (
 # (see field_helpers.dataset_table_value_field).
 _DATASET_TABLE_VALUE_FIELD_TYPE = FieldType.DATASET_TABLE_VALUE.value  # "DatasetTableValue"
 
+# fieldType of one column name of an entity metadata table (see field_helpers.entity_metadata_column_field).
+_ENTITY_METADATA_COLUMN_FIELD_TYPE = FieldType.ENTITY_METADATA_COLUMN.value  # "EntityMetadataColumn"
+
 # Checks and error messages for ``parameters.fieldDataType``. ``bool`` is a
 # subclass of ``int`` in Python, so it is excluded from int and float.
 _FIELD_DATA_TYPE_CHECKS = {
@@ -553,6 +556,10 @@ def _validate_field(name: str, spec: Dict[str, Any], data: Dict[str, Any]) -> Li
     # An entity-list value is the selected list's id.
     if spec.get("fieldType") == _ENTITY_LIST_FIELD_TYPE and not isinstance(value, str):
         return [FieldError(name, f"must be an entity list id, got {value!r}")]
+
+    # A dataset-table-column value is the name of the picked column.
+    if spec.get("fieldType") == _ENTITY_METADATA_COLUMN_FIELD_TYPE and not isinstance(value, str):
+        return [FieldError(name, f"must be a column name, got {value!r}")]
 
     # An entity-title value is one of the title columns of its entity type.
     if spec.get("fieldType") == _ENTITY_TITLE_FIELD_TYPE:
