@@ -26,6 +26,7 @@ from field_utils import (
     intensity_input_datasets_field,
     entity_list_field,
     entity_title_field,
+    orderable_sample_metadata_columns_field,
     entity_lists_field,
     has_multiple_column_values_from_field_in_table,
     has_unique_column_values_in_table,
@@ -3836,3 +3837,88 @@ class TestEntityTitle:
         assert _errors(validate_form(definition, {"entity_type": "protein", "title_field": value})) == {
             ("title_field", f"must be an entity title column, got {value!r}"),
         }
+
+
+class TestOrderableSampleMetadataColumns:
+    """An orderable-columns value is a list of {"field", "field_type", "order", ...} column objects."""
+
+    class _Form(MdDatasetBaseModel):
+        x_axis_list: Optional[List[dict]] = orderable_sample_metadata_columns_field(datasets_ref="dataset_id")
+
+    @pytest.fixture()
+    def definition(self):
+        return translate_payload(self._Form.model_json_schema())
+
+    def test_valid_columns(self, definition):
+        value = [
+            {"field": "dataset", "field_type": "dataset", "order": "none"},
+            {"field": "protein", "field_type": "entity", "entity_label": "gene_name", "type": "categorical",
+             "order": "asc", "order_by_values": []},
+            {"field": "Condition", "field_type": "sample_metadata", "order": "custom", "order_by_values": ["B", "A"]},
+            {"field": "Age", "field_type": "sample_metadata", "order": "desc", "type": "numeric"},
+            {"field": "sample_name", "order": "none"},
+        ]
+        assert validate_form(definition, {"x_axis_list": value}).is_valid
+
+    @pytest.mark.parametrize("value", [None, []])
+    def test_may_be_left_out(self, definition, value):
+        assert validate_form(definition, {"x_axis_list": value}).is_valid
+
+    @pytest.mark.parametrize("value", [{"field": "Condition"}, "Condition"])
+    def test_must_be_a_list(self, definition, value):
+        assert _errors(validate_form(definition, {"x_axis_list": value})) == {
+            ("x_axis_list", "must be a list of columns"),
+        }
+
+    def test_columns_need_a_field(self, definition):
+        value = ["Condition", {"order": "asc"}, {"field": ""}]
+        assert _errors(validate_form(definition, {"x_axis_list": value})) == {
+            ("x_axis_list", "column 1 must be an object with a 'field', got 'Condition'"),
+            ("x_axis_list", "column 2 'field' must be a non-empty string, got None"),
+            ("x_axis_list", "column 3 'field' must be a non-empty string, got ''"),
+        }
+
+    def test_fields_must_not_repeat(self, definition):
+        value = [{"field": "Condition"}, {"field": "Condition"}]
+        assert _errors(validate_form(definition, {"x_axis_list": value})) == {
+            ("x_axis_list", "column 'Condition' is selected more than once"),
+        }
+
+    def test_unknown_values(self, definition):
+        value = [{"field": "Condition", "field_type": "metadata", "order": "random", "type": "text"}]
+        assert _errors(validate_form(definition, {"x_axis_list": value})) == {
+            ("x_axis_list", "column 'Condition' 'field_type' must be one of "
+                            "['sample_metadata', 'entity', 'dataset'], got 'metadata'"),
+            ("x_axis_list", "column 'Condition' 'order' must be one of ['asc', 'desc', 'none', 'custom'], got 'random'"),
+            ("x_axis_list", "column 'Condition' 'type' must be one of ['categorical', 'numeric'], got 'text'"),
+        }
+
+    @pytest.mark.parametrize("column", [
+        {"field": "Condition", "order": "custom"},
+        {"field": "Condition", "order": "custom", "order_by_values": []},
+    ])
+    def test_custom_order_needs_values(self, definition, column):
+        assert _errors(validate_form(definition, {"x_axis_list": [column]})) == {
+            ("x_axis_list", "column 'Condition' has a custom order, so 'order_by_values' needs a value"),
+        }
+
+    def test_order_by_values_must_be_a_list(self, definition):
+        value = [{"field": "Condition", "order": "custom", "order_by_values": "A"}]
+        assert _errors(validate_form(definition, {"x_axis_list": value})) == {
+            ("x_axis_list", "column 'Condition' 'order_by_values' must be a list, got 'A'"),
+        }
+
+    def test_entity_label_must_be_a_title_of_the_entity(self, definition):
+        value = [
+            {"field": "peptide", "field_type": "entity", "entity_label": "protein_name"},
+            {"field": "protein", "field_type": "entity", "entity_label": 1},
+        ]
+        assert _errors(validate_form(definition, {"x_axis_list": value})) == {
+            ("x_axis_list", "column 'peptide' 'entity_label' must be one of "
+                            "['modified_sequence', 'gene_name'], got 'protein_name'"),
+            ("x_axis_list", "column 'protein' 'entity_label' must be a string, got 1"),
+        }
+
+    def test_entity_label_of_an_unknown_entity_is_not_checked(self, definition):
+        value = [{"field": "precursor", "field_type": "entity", "entity_label": "anything"}]
+        assert validate_form(definition, {"x_axis_list": value}).is_valid

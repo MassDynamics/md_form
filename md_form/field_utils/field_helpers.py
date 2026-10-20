@@ -567,6 +567,49 @@ def entity_title_field(
     return result
 
 
+@field_builder(FieldType.ORDERABLE_SAMPLE_METADATA_COLUMNS)
+@typechecked
+def orderable_sample_metadata_columns_field(
+    datasets_ref: str = "input_datasets",
+    default: Optional[List[Dict[str, Any]]] = None,
+    entity_type: Optional[Union[EntityType, Dict[str, Any]]] = None,
+    include_hierarchical_entities: Optional[bool] = None,
+    orderable_protein_ids: Optional[bool] = None,
+    allow_dataset: Optional[bool] = None,
+) -> Dict[str, Any]:
+    """Pick an ordered list of columns to group samples by, such as an x axis.
+
+    The value is a list of column objects, in grouping order:
+    `{"field": <name>, "field_type": "sample_metadata" | "entity" | "dataset",
+    "order": "asc" | "desc" | "none" | "custom", "type": "categorical" |
+    "numeric", "order_by_values": [...], "entity_label": <title column>}`.
+    Only `field` is required, and `order_by_values` must hold at least one
+    value when `order` is "custom".
+
+    `datasets_ref` is the name of the field holding the dataset whose sample
+    metadata columns are offered. `entity_type` (an EntityType value or a
+    `{"ref": "<field>"}` dict) also offers that entity as a column, with
+    `include_hierarchical_entities` adding its parent entity types;
+    `orderable_protein_ids` lets an entity column be custom-ordered instead of
+    labelled; `allow_dataset` also offers the dataset as a column. Each of
+    those is omitted when unset so the frontend applies its own default.
+    """
+    parameters: Dict[str, Any] = {"datasetsSearch": {"ref": datasets_ref}}
+    if entity_type is not None:
+        parameters["entityType"] = entity_type
+    if include_hierarchical_entities is not None:
+        parameters["includeHierarchicalEntities"] = include_hierarchical_entities
+    if orderable_protein_ids is not None:
+        parameters["orderableProteinIds"] = orderable_protein_ids
+    if allow_dataset is not None:
+        parameters["allowDataset"] = allow_dataset
+
+    result: Dict[str, Any] = {"json_schema_extra": {"parameters": parameters}}
+    if default is not None:
+        result["json_schema_extra"]["default"] = default
+    return result
+
+
 @field_builder(FieldType.SAMPLE_METADATA_COLUMNS)
 def sample_metadata_columns_field(
     datasets_ref: str = "input_datasets",

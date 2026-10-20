@@ -49,6 +49,10 @@ runtime, without needing the original Pydantic model. It enforces:
   ``{"column": ..., "value": [...]}`` objects,
 * ``DatasetParamMultiple`` values: a list of different, non-empty database
   names,
+* ``OrderableSampleMetadataColumns`` values: a list of column objects with
+  different, non-empty ``field`` names and known ``field_type``, ``order``
+  and ``type`` values, where a ``"custom"`` order lists its
+  ``order_by_values``,
 * the value/cross-field ``rules`` (``is_equal_to_value``, etc.),
 * dataset-selection fields against a supplied ``datasets`` list (see the
   ``datasets`` argument of :func:`validate_form`), including that each
@@ -144,6 +148,14 @@ _ENTITY_TITLE_COLUMNS: Dict[str, List[str]] = {
     "metabolite": ["metabolite_id"],
     "ptm": ["ptm_protein", "gene_name"],
 }
+# fieldType of an ordered list of grouping columns
+# (see field_helpers.orderable_sample_metadata_columns_field), and the values
+# each column's keys may take.
+_ORDERABLE_COLUMNS_FIELD_TYPE = FieldType.ORDERABLE_SAMPLE_METADATA_COLUMNS.value  # "OrderableSampleMetadataColumns"
+_ORDERABLE_COLUMN_FIELD_TYPES = ["sample_metadata", "entity", "dataset"]
+_ORDERABLE_COLUMN_ORDERS = ["asc", "desc", "none", "custom"]
+_ORDERABLE_COLUMN_TYPES = ["categorical", "numeric"]
+
 _ENTITY_TITLE_HIERARCHY: Dict[str, List[str]] = {
     "protein": ["protein"],
     "peptide": ["protein", "peptide"],
@@ -559,6 +571,13 @@ def _validate_field(name: str, spec: Dict[str, Any], data: Dict[str, Any]) -> Li
         title_errors = _check_entity_title(name, spec, value, data)
         if title_errors:
             return title_errors
+
+    # An orderable-columns value is a list of column objects. Each malformed
+    # column is reported.
+    if spec.get("fieldType") == _ORDERABLE_COLUMNS_FIELD_TYPE:
+        shape_errors = _check_orderable_columns_shape(name, value)
+        if shape_errors:
+            return shape_errors
 
     # A sample-metadata-values-filter value is {"values": [...], "filters":
     # [...]}. Each malformed value and filter is reported.
@@ -1126,6 +1145,60 @@ def _check_sample_metadata_values_filter_shape(
         filter_value = item.get("value")
         if not isinstance(filter_value, list) or not all(isinstance(v, str) for v in filter_value):
             errors.append(FieldError(name, f"filter {number} 'value' must be a list of strings, got {filter_value!r}"))
+    return errors
+
+
+def _check_orderable_columns_shape(name: str, value: Any) -> List[FieldError]:
+    """Ensure a value is a list of grouping columns.
+
+    Each column is ``{"field": ..., "field_type": ..., "order": ...,
+    "type": ..., "order_by_values": [...], "entity_label": ...}``. ``field``
+    is required, must be a non-empty string and must not repeat. The other
+    keys are optional (a missing or ``None`` one is left unset), but
+    ``field_type``, ``order`` and ``type`` must be known values,
+    ``order_by_values`` a list, which a ``"custom"`` order needs at least one
+    value in, and ``entity_label`` one of the entity's title columns. Other
+    keys are allowed. Columns are numbered from 1 in the messages, as a user
+    would count them.
+    """
+    if not isinstance(value, list):
+        return [FieldError(name, "must be a list of columns")]
+    errors: List[FieldError] = []
+    seen: List[str] = []
+    for number, column in enumerate(value, start=1):
+        if not isinstance(column, dict):
+            errors.append(FieldError(name, f"column {number} must be an object with a 'field', got {column!r}"))
+            continue
+        field = column.get("field")
+        if not isinstance(field, str) or field == "":
+            errors.append(FieldError(name, f"column {number} 'field' must be a non-empty string, got {field!r}"))
+            continue
+        if field in seen:
+            errors.append(FieldError(name, f"column {field!r} is selected more than once"))
+            continue
+        seen.append(field)
+        for key, allowed in (
+            ("field_type", _ORDERABLE_COLUMN_FIELD_TYPES),
+            ("order", _ORDERABLE_COLUMN_ORDERS),
+            ("type", _ORDERABLE_COLUMN_TYPES),
+        ):
+            v = column.get(key)
+            if v is not None and v not in allowed:
+                errors.append(FieldError(name, f"column {field!r} '{key}' must be one of {allowed}, got {v!r}"))
+        order_by_values = column.get("order_by_values")
+        if order_by_values is not None and not isinstance(order_by_values, list):
+            errors.append(FieldError(name, f"column {field!r} 'order_by_values' must be a list, got {order_by_values!r}"))
+        elif column.get("order") == "custom" and not order_by_values:
+            errors.append(FieldError(name, f"column {field!r} has a custom order, so 'order_by_values' needs a value"))
+        label = column.get("entity_label")
+        if label is not None:
+            titles = _ENTITY_TITLE_COLUMNS.get(field) if column.get("field_type") == "entity" else None
+            if not isinstance(label, str):
+                errors.append(FieldError(name, f"column {field!r} 'entity_label' must be a string, got {label!r}"))
+            elif titles is not None and label not in titles:
+                errors.append(FieldError(
+                    name, f"column {field!r} 'entity_label' must be one of {titles}, got {label!r}"
+                ))
     return errors
 
 

@@ -24,6 +24,7 @@ class FieldType(str, Enum):
     ENTITY_LISTS = "ProteinLists"
     ENTITY_LIST = "ProteinList"
     ENTITY_TITLE = "EntityTitle"
+    ORDERABLE_SAMPLE_METADATA_COLUMNS = "OrderableSampleMetadataColumns"
     DATABASES = "Databases"
     REFERENCE_DATA_FILE = "ReferenceDataFile"
     DATASET_TABLE_VALUE = "DatasetTableValue"

@@ -10,6 +10,7 @@ from field_utils.field_helpers import (
     sample_metadata_value_field, sample_metadata_columns_field,
     sample_metadata_values_filter_field, entity_lists_field, databases_field, dataset_param_multiple_field,
     reference_data_file_field, dataset_table_value_field, entity_list_entity_ids_field, entity_list_field, entity_title_field,
+    orderable_sample_metadata_columns_field,
     plot_size_field, radio_selection_field, selection_type_field, scientific_notation_field,
     fold_change_threshold_field, FieldDataType, EntityType
 )
@@ -1715,3 +1716,66 @@ class TestEntityTitleField:
     def test_entity_title_field_rejects_wrong_types(self, kwargs):
         with pytest.raises(TypeCheckError):
             entity_title_field(**kwargs)
+
+
+class TestOrderableSampleMetadataColumnsField:
+    """Test cases for the orderable_sample_metadata_columns_field function"""
+
+    def test_orderable_sample_metadata_columns_field_basic(self):
+        field = orderable_sample_metadata_columns_field()
+
+        assert isinstance(field, FieldInfo)
+        assert field.json_schema_extra["fieldType"] == FieldType.ORDERABLE_SAMPLE_METADATA_COLUMNS
+        assert field.json_schema_extra["parameters"] == {"datasetsSearch": {"ref": "input_datasets"}}
+        assert "default" not in field.json_schema_extra
+        assert field.default is None
+
+    def test_orderable_sample_metadata_columns_field_with_params(self):
+        field = orderable_sample_metadata_columns_field(
+            datasets_ref="dataset_id",
+            entity_type={"ref": "entity_type"},
+            include_hierarchical_entities=True,
+            orderable_protein_ids=False,
+            allow_dataset=True,
+        )
+
+        assert field.json_schema_extra["parameters"] == {
+            "datasetsSearch": {"ref": "dataset_id"},
+            "entityType": {"ref": "entity_type"},
+            "includeHierarchicalEntities": True,
+            "orderableProteinIds": False,
+            "allowDataset": True,
+        }
+
+    def test_orderable_sample_metadata_columns_field_with_default(self):
+        field = orderable_sample_metadata_columns_field(default=[{"field": "sample_name", "order": "none"}])
+
+        assert field.json_schema_extra["default"] == [{"field": "sample_name", "order": "none"}]
+        assert field.default == [{"field": "sample_name", "order": "none"}]
+
+    def test_orderable_sample_metadata_columns_field_translates(self):
+        class _Form(MdDatasetBaseModel):
+            x_axis_list: Optional[List[Dict]] = orderable_sample_metadata_columns_field(
+                datasets_ref="dataset_id",
+                name="X axis",
+                description="Group samples by one or more metadata fields.",
+                group="Plot Configuration",
+            )
+
+        assert translate_payload(_Form.model_json_schema())["x_axis_list"] == {
+            "default": None,
+            "description": "Group samples by one or more metadata fields.",
+            "fieldType": "OrderableSampleMetadataColumns",
+            "group": "Plot Configuration",
+            "md-field-order": 0,
+            "name": "X axis",
+            "parameters": {"datasetsSearch": {"ref": "dataset_id"}},
+        }
+
+    @pytest.mark.parametrize(
+        "kwargs",
+        [{"datasets_ref": {"ref": "x"}}, {"default": "sample_name"}, {"entity_type": "mouse"}, {"allow_dataset": "yes"}],
+    )
+    def test_orderable_sample_metadata_columns_field_rejects_wrong_types(self, kwargs):
+        with pytest.raises(TypeCheckError):
+            orderable_sample_metadata_columns_field(**kwargs)
