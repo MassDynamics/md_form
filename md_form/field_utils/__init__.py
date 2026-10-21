@@ -6,6 +6,7 @@ Field utilities for form building and validation.
 from .field_helpers import (
     boolean_field,
     string_field,
+    blob_field,
     number_field,
     select_field,
     multiple_select_field,
@@ -75,6 +76,7 @@ __all__ = [
     # Field helpers
     "boolean_field",
     "string_field", 
+    "blob_field",
     "number_field",
     "FieldDataType",
     "EntityType",

@@ -6,6 +6,7 @@ from pydantic import BaseModel
 class FieldType(str, Enum):
     """Enum for common field types to prevent typos"""
     STRING = "String"
+    BLOB = "Blob"
     BOOLEAN = "Boolean"
     NUMBER = "Number"
     NUMBER_RANGE = "NumberRange"

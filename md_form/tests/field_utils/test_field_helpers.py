@@ -3,7 +3,7 @@ from typing import Dict, Any, List, Optional, get_args
 from typeguard import TypeCheckError
 from pydantic.fields import FieldInfo
 from field_utils.field_helpers import (
-    boolean_field, string_field, number_field, select_field, multiple_select_field,
+    boolean_field, string_field, blob_field, number_field, select_field, multiple_select_field,
     experiment_design_field, condition_column_field, condition_column_multi_select_field,
     condition_comparisons_field, condition_comparison_field, control_variables_field, numberrange_field,
     intensity_input_dataset_field, intensity_input_datasets_field, datasets_field, entity_type_field,
@@ -1791,3 +1791,54 @@ class TestOrderableSampleMetadataColumnsField:
     def test_orderable_sample_metadata_columns_field_rejects_wrong_types(self, kwargs):
         with pytest.raises(TypeCheckError):
             orderable_sample_metadata_columns_field(**kwargs)
+
+
+class TestBlobField:
+    """Test cases for the blob_field function"""
+
+    def test_blob_field_basic(self):
+        field = blob_field()
+
+        assert isinstance(field, FieldInfo)
+        assert field.json_schema_extra["fieldType"] == FieldType.BLOB
+        assert "parameters" not in field.json_schema_extra
+        assert "default" not in field.json_schema_extra
+        assert field.default is None
+
+    def test_blob_field_with_params(self):
+        field = blob_field(default="", placeholder="e.g. 50, 200, 122", rows=2)
+
+        assert field.json_schema_extra["default"] == ""
+        assert field.json_schema_extra["parameters"] == {"placeholder": "e.g. 50, 200, 122", "rows": 2}
+        assert field.default == ""
+
+    def test_blob_field_translates(self):
+        class _Form(MdDatasetBaseModel):
+            reference_lines: Optional[str] = blob_field(
+                default="",
+                placeholder="e.g. 50, 200, 122",
+                rows=2,
+                name="Reference lines (y-values)",
+                description="Comma-separated y-values to draw as horizontal dotted lines.",
+                group="Layout",
+            )
+
+        assert translate_payload(_Form.model_json_schema())["reference_lines"] == {
+            "default": "",
+            "description": "Comma-separated y-values to draw as horizontal dotted lines.",
+            "fieldType": "Blob",
+            "group": "Layout",
+            "md-field-order": 0,
+            "name": "Reference lines (y-values)",
+            "parameters": {"placeholder": "e.g. 50, 200, 122", "rows": 2},
+        }
+
+    @pytest.mark.parametrize("rows", [0, -1])
+    def test_blob_field_rejects_rows_below_one(self, rows):
+        with pytest.raises(ValueError, match="rows must be >= 1"):
+            blob_field(rows=rows)
+
+    @pytest.mark.parametrize("kwargs", [{"rows": True}, {"rows": 2.5}, {"rows": "2"}, {"placeholder": 1}, {"default": 1}])
+    def test_blob_field_rejects_wrong_types(self, kwargs):
+        with pytest.raises((TypeError, TypeCheckError)):
+            blob_field(**kwargs)

@@ -48,6 +48,39 @@ def string_field(
     
     return result
 
+@field_builder(FieldType.BLOB)
+@typechecked
+def blob_field(
+    default: Optional[str] = None,
+    placeholder: Optional[str] = None,
+    rows: Optional[int] = None,
+) -> Dict[str, Any]:
+    """Create a blob field: free text entered in a multi-line text area.
+
+    The value is free text; its type isn't checked. `placeholder` is shown while the text area is
+    empty, and `rows` is its height in lines (at least 1); text longer than
+    that scrolls, so it doesn't limit the value. Each parameter is omitted
+    when unset so the frontend applies its own default.
+    """
+    if isinstance(rows, bool):
+        raise TypeError(f"rows must be an int, got {rows!r}")
+    if rows is not None and rows < 1:
+        raise ValueError(f"rows must be >= 1, got {rows}")
+
+    result: Dict[str, Any] = {"json_schema_extra": {}}
+    if default is not None:
+        result["json_schema_extra"]["default"] = default
+
+    parameters: Dict[str, Any] = {}
+    if placeholder is not None:
+        parameters["placeholder"] = placeholder
+    if rows is not None:
+        parameters["rows"] = rows
+    if parameters:
+        result["json_schema_extra"]["parameters"] = parameters
+    return result
+
+
 @field_builder(FieldType.NUMBER)
 @typechecked
 def number_field(

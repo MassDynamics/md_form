@@ -13,6 +13,7 @@ from pydantic import BaseModel
 
 from field_utils import (
     MdDatasetBaseModel,
+    blob_field,
     boolean_field,
     condition_column_field,
     condition_comparisons_field,
@@ -3933,3 +3934,23 @@ class TestOrderableSampleMetadataColumns:
     def test_entity_label_of_an_unknown_entity_is_not_checked(self, definition):
         value = [{"field": "precursor", "field_type": "entity", "entity_label": "anything"}]
         assert validate_form(definition, {"x_axis_list": value}).is_valid
+
+
+class TestBlob:
+    """A Blob value is free text; its type isn't checked."""
+
+    class _Form(MdDatasetBaseModel):
+        reference_lines: Optional[str] = blob_field(default="", placeholder="e.g. 50, 200, 122", rows=2)
+        notes: str = blob_field(rules=[is_required()])
+
+    @pytest.fixture()
+    def definition(self):
+        return translate_payload(self._Form.model_json_schema())
+
+    @pytest.mark.parametrize("value", ["50, 200, 122", "line one\nline two", "", 50, 1.5])
+    def test_any_value_is_accepted(self, definition, value):
+        assert validate_form(definition, {"reference_lines": value, "notes": "x"}).is_valid
+
+    @pytest.mark.parametrize("data", [{}, {"notes": None}, {"notes": ""}])
+    def test_required_field_missing(self, definition, data):
+        assert _errors(validate_form(definition, data)) == {("notes", "is required")}

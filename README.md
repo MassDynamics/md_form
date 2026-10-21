@@ -97,6 +97,10 @@ knowledge_bases = select_field(
 
 - `boolean_field(default=None, label=None)`
 - `string_field(default=None, disabled=False)`
+- `blob_field(default=None, placeholder=None, rows=None)`
+  - Free text in a multi-line text area (`fieldType: "Blob"`); the value's type isn't checked
+  - `placeholder` is shown while it is empty; `rows` is its height in lines and must be an int of at least 1
+    (it doesn't limit the value, longer text scrolls)
 - `number_field(field_data_type, default=None, ge=None, le=None)`
   - `field_data_type` must always be passed: `FieldDataType.INT` or `FieldDataType.FLOAT` (emitted as `parameters.fieldDataType`), or `None` to accept either
 - `select_field(default=None, options=None, discriminator=None)`
