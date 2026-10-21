@@ -172,22 +172,31 @@ SELECTION_TYPE_OPTIONS = [
     {"name": "Use Selection", "value": "selection"},
     {"name": "Use List", "value": "list"},
 ]
+SELECTION_TYPE_SINGLE_ENTITY_OPTION = {"name": "Single Entity", "value": "single_entity"}
 
 
 @field_builder(FieldType.RADIO_SELECTION)
 @typechecked
 def selection_type_field(
-    default: Optional[Literal["selection", "list"]] = "selection",
+    default: Optional[Literal["selection", "list", "single_entity"]] = "selection",
     inline: Optional[bool] = None,
+    include_single_entity: bool = False,
 ) -> Dict[str, Any]:
     """Create a selection type field: a radio choosing "selection" or "list".
 
     Always has the options "Use Selection" and "Use List", and emits
     `parameters.selectionType: true` so the frontend can tell it apart from an
-    ordinary radio.
+    ordinary radio. `include_single_entity` adds a third option, "Single
+    Entity" ("single_entity"); a "single_entity" default needs it.
     """
+    options = [dict(option) for option in SELECTION_TYPE_OPTIONS]
+    if include_single_entity:
+        options.append(dict(SELECTION_TYPE_SINGLE_ENTITY_OPTION))
+    elif default == "single_entity":
+        raise ValueError("default 'single_entity' needs include_single_entity=True")
+
     parameters: Dict[str, Any] = {
-        "options": [dict(option) for option in SELECTION_TYPE_OPTIONS],
+        "options": options,
         "selectionType": True,
     }
     if inline is not None:

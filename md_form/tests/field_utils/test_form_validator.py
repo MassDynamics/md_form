@@ -3733,6 +3733,17 @@ class TestSelectionType:
     def test_not_required_without_entity_type(self, definition):
         assert validate_form(definition, {}).is_valid
 
+    def test_single_entity_only_when_included(self, definition):
+        assert _errors(validate_form(definition, {"entity_type": "protein", "selection_type": "single_entity"})) == {
+            ("selection_type", "'single_entity' is not one of the allowed options ['selection', 'list']"),
+        }
+
+        class _SingleEntityForm(MdDatasetBaseModel):
+            selection_type: Optional[str] = selection_type_field(include_single_entity=True)
+
+        single_entity = translate_payload(_SingleEntityForm.model_json_schema())
+        assert validate_form(single_entity, {"selection_type": "single_entity"}).is_valid
+
 
 class TestEntityList:
     """An entity list value is the id of the single selected list."""

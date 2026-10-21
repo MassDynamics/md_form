@@ -1613,6 +1613,18 @@ class TestSelectionTypeField:
             "when": When.is_present("entity_type").as_dict(),
         }
 
+    def test_selection_type_field_with_single_entity(self):
+        field = selection_type_field(include_single_entity=True, default="single_entity")
+
+        assert field.json_schema_extra["parameters"]["options"] == self.OPTIONS + [
+            {"name": "Single Entity", "value": "single_entity"},
+        ]
+        assert field.default == "single_entity"
+
+    def test_selection_type_field_single_entity_default_needs_the_option(self):
+        with pytest.raises(ValueError, match="include_single_entity"):
+            selection_type_field(default="single_entity")
+
     @pytest.mark.parametrize("default", ["all", "Selection", 1])
     def test_selection_type_field_rejects_other_defaults(self, default):
         with pytest.raises(TypeCheckError):
