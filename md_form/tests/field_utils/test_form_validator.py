@@ -3981,14 +3981,14 @@ class TestColourPalette:
 
 
 class TestPairwiseConditionPairs:
-    """A PairwiseConditionPairs value is {"values": [{"condition_pair": [...], "left", "right"}, ...]}
+    """A PairwiseConditionPairs value is [{"condition_pair": [...], "left", "right"}, ...]
     holding pairs the selected pairwise dataset was run with."""
 
     _PAIRS = [["C2", "C1"], ["C3", "C1"], ["C3", "C2"]]
 
     class _Form(MdDatasetBaseModel):
         dataset_id: Optional[str] = datasets_field(type="PAIRWISE", multiple=False)
-        condition_pairs: Optional[dict] = pairwise_condition_pairs_field(
+        condition_pairs: Optional[List[dict]] = pairwise_condition_pairs_field(
             datasets_ref="dataset_id", filterable=True, conditions_orderable=True,
             rules=[is_required()], when=When.is_present("dataset_id"),
         )
@@ -4012,20 +4012,20 @@ class TestPairwiseConditionPairs:
         return validate_form(definition, {"dataset_id": "ds-1", "condition_pairs": value}, datasets=datasets)
 
     def test_valid(self, definition, datasets):
-        value = {"values": [
+        value = [
             {"condition_pair": ["C2", "C1"]},
             {"condition_pair": ["C3", "C1"], "left": "C1", "right": "C3"},
-        ]}
+        ]
         assert self._validate(definition, value, datasets).is_valid
 
-    @pytest.mark.parametrize("value", [None, {"values": []}])
+    @pytest.mark.parametrize("value", [None, []])
     def test_required_when_a_dataset_is_selected(self, definition, datasets, value):
         assert _errors(self._validate(definition, value, datasets)) == {("condition_pairs", "is required")}
 
-    @pytest.mark.parametrize("value", [[["C2", "C1"]], {"pairs": [["C2", "C1"]]}, {"values": "C2 - C1"}])
-    def test_must_be_an_object_with_values(self, definition, datasets, value):
+    @pytest.mark.parametrize("value", [{"values": [{"condition_pair": ["C2", "C1"]}]}, {"condition_pair": ["C2", "C1"]}, "C2 - C1"])
+    def test_must_be_a_list(self, definition, datasets, value):
         assert _errors(self._validate(definition, value, datasets)) == {
-            ("condition_pairs", "must be an object with a 'values' list of condition pairs"),
+            ("condition_pairs", "must be a list of condition pairs"),
         }
 
     @pytest.mark.parametrize("item", [
@@ -4038,28 +4038,28 @@ class TestPairwiseConditionPairs:
         {"condition_pair": ["C2", "C2"]},
     ])
     def test_pairs_need_two_different_conditions(self, definition, datasets, item):
-        assert _errors(self._validate(definition, {"values": [item]}, datasets)) == {
+        assert _errors(self._validate(definition, [item], datasets)) == {
             ("condition_pairs", f"pair 1 must be an object with a 'condition_pair' of two different conditions, got {item!r}"),
         }
 
     def test_pairs_must_not_repeat(self, definition, datasets):
-        value = {"values": [{"condition_pair": ["C2", "C1"]}, {"condition_pair": ["C2", "C1"]}]}
+        value = [{"condition_pair": ["C2", "C1"]}, {"condition_pair": ["C2", "C1"]}]
         assert _errors(self._validate(definition, value, datasets)) == {
             ("condition_pairs", "condition pair ['C2', 'C1'] is selected more than once"),
         }
 
     def test_left_and_right_are_the_pairs_conditions(self, definition, datasets):
-        value = {"values": [
+        value = [
             {"condition_pair": ["C2", "C1"], "left": "C3", "right": "C1"},
             {"condition_pair": ["C3", "C1"], "left": "C1", "right": "C1"},
-        ]}
+        ]
         assert _errors(self._validate(definition, value, datasets)) == {
             ("condition_pairs", "pair ['C2', 'C1'] 'left' 'C3' is not one of its conditions"),
             ("condition_pairs", "pair ['C3', 'C1'] 'left' and 'right' must be different conditions"),
         }
 
     def test_pairs_must_be_in_the_dataset(self, definition, datasets):
-        value = {"values": [{"condition_pair": ["C1", "C2"]}, {"condition_pair": ["C4", "C1"]}]}
+        value = [{"condition_pair": ["C1", "C2"]}, {"condition_pair": ["C4", "C1"]}]
         assert _errors(self._validate(definition, value, datasets)) == {
             ("condition_pairs", "dataset 'Pairwise run' does not have the condition pair ['C1', 'C2']"),
             ("condition_pairs", "dataset 'Pairwise run' does not have the condition pair ['C4', 'C1']"),
@@ -4067,10 +4067,10 @@ class TestPairwiseConditionPairs:
 
     def test_dataset_must_be_pairwise(self, definition, datasets):
         datasets[0]["type"] = "INTENSITY"
-        errors = _errors(self._validate(definition, {"values": [{"condition_pair": ["C2", "C1"]}]}, datasets))
+        errors = _errors(self._validate(definition, [{"condition_pair": ["C2", "C1"]}], datasets))
         assert ("condition_pairs", "dataset 'Pairwise run' is not a PAIRWISE dataset, so has no condition pairs") in errors
 
     @pytest.mark.parametrize("job_run_params", [None, {}, {"condition_comparisons": {}}])
     def test_dataset_without_pairs_is_not_checked(self, definition, datasets, job_run_params):
         datasets[0]["job_run_params"] = job_run_params
-        assert self._validate(definition, {"values": [{"condition_pair": ["C9", "C8"]}]}, datasets).is_valid
+        assert self._validate(definition, [{"condition_pair": ["C9", "C8"]}], datasets).is_valid

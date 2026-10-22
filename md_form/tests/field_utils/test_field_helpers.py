@@ -1883,8 +1883,8 @@ class TestPairwiseConditionPairsField:
         assert isinstance(field, FieldInfo)
         assert field.json_schema_extra["fieldType"] == FieldType.PAIRWISE_CONDITION_PAIRS
         assert field.json_schema_extra["parameters"] == {"datasetsSearch": {"ref": "input_datasets"}}
-        assert field.json_schema_extra["default"] == {"values": []}
-        assert field.default == {"values": []}
+        assert field.json_schema_extra["default"] == []
+        assert field.default == []
 
     def test_pairwise_condition_pairs_field_with_params(self):
         field = pairwise_condition_pairs_field(
@@ -1909,7 +1909,7 @@ class TestPairwiseConditionPairsField:
             )
 
         assert translate_payload(_Form.model_json_schema())["condition_pairs"] == {
-            "default": {"values": []},
+            "default": [],
             "fieldType": "PairwiseConditionPairs",
             "group": "Data",
             "md-field-order": 0,

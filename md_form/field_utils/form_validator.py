@@ -49,8 +49,8 @@ runtime, without needing the original Pydantic model. It enforces:
   ``{"column": ..., "value": [...]}`` objects,
 * ``DatasetParamMultiple`` values: a list of different, non-empty database
   names,
-* ``PairwiseConditionPairs`` values: ``{"values": [{"condition_pair": [...],
-  "left": ..., "right": ...}, ...]}``, with different two-condition pairs
+* ``PairwiseConditionPairs`` values: ``[{"condition_pair": [...], "left": ...,
+  "right": ...}, ...]``, with different two-condition pairs
   whose optional ``left`` and ``right`` are its two conditions,
 * ``OrderableSampleMetadataColumns`` values: a list of column objects with
   different, non-empty ``field`` names and known ``field_type``, ``order``
@@ -471,7 +471,7 @@ def _check_dataset_condition_pairs(
         available = comparisons.get("condition_comparison_pairs") if isinstance(comparisons, dict) else None
         if not isinstance(available, list) or not available:
             continue
-        for item in value["values"]:
+        for item in value:
             if item["condition_pair"] not in available:
                 errors.append(FieldError(
                     name, f"dataset {dataset_name!r} does not have the condition pair {item['condition_pair']!r}"
@@ -632,8 +632,8 @@ def _validate_field(name: str, spec: Dict[str, Any], data: Dict[str, Any]) -> Li
     if spec.get("fieldType") == _ENTITY_LIST_FIELD_TYPE and not isinstance(value, str):
         return [FieldError(name, f"must be an entity list id, got {value!r}")]
 
-    # A pairwise-condition-pairs value is {"values": [{"condition_pair": [...],
-    # "left", "right"}, ...]}. Each malformed pair is reported.
+    # A pairwise-condition-pairs value is [{"condition_pair": [...], "left",
+    # "right"}, ...]. Each malformed pair is reported.
     if spec.get("fieldType") == _PAIRWISE_CONDITION_PAIRS_FIELD_TYPE:
         shape_errors = _check_pairwise_condition_pairs_shape(name, value)
         if shape_errors:
@@ -1226,7 +1226,7 @@ def _check_sample_metadata_values_filter_shape(
 
 
 def _check_pairwise_condition_pairs_shape(name: str, value: Any) -> List[FieldError]:
-    """Ensure a value is ``{"values": [{"condition_pair": [c1, c2], "left": ..., "right": ...}, ...]}``.
+    """Ensure a value is ``[{"condition_pair": [c1, c2], "left": ..., "right": ...}, ...]``.
 
     Each ``condition_pair`` is two different, non-empty condition names, and
     no pair is picked twice. ``left`` and ``right`` are only sent when the
@@ -1235,11 +1235,11 @@ def _check_pairwise_condition_pairs_shape(name: str, value: Any) -> List[FieldEr
     keys are allowed. Pairs are numbered from 1 in the messages, as a user
     would count them.
     """
-    if not isinstance(value, dict) or not isinstance(value.get("values"), list):
-        return [FieldError(name, "must be an object with a 'values' list of condition pairs")]
+    if not isinstance(value, list):
+        return [FieldError(name, "must be a list of condition pairs")]
     errors: List[FieldError] = []
     seen: List[List[str]] = []
-    for number, item in enumerate(value["values"], start=1):
+    for number, item in enumerate(value, start=1):
         pair = item.get("condition_pair") if isinstance(item, dict) else None
         if (
             not isinstance(pair, list)

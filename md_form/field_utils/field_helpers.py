@@ -662,9 +662,9 @@ def pairwise_condition_pairs_field(
 ) -> Dict[str, Any]:
     """Pick condition pairs from the comparisons a pairwise dataset was run with.
 
-    The value is `{"values": [{"condition_pair": ["C1", "C2"]}, ...]}`; with
+    The value is `[{"condition_pair": ["C1", "C2"]}, ...]`; with
     `conditions_orderable` each pair also carries `"left"` and `"right"`, the
-    pair's conditions in the order chosen. The default is `{"values": []}`.
+    pair's conditions in the order chosen. The default is `[]`.
 
     The pairs offered are the `condition_comparisons.condition_comparison_pairs`
     in the job run params of the PAIRWISE dataset in the field named by
@@ -680,7 +680,7 @@ def pairwise_condition_pairs_field(
     if conditions_orderable is not None:
         parameters["conditionsOrderable"] = conditions_orderable
 
-    return {"json_schema_extra": {"default": {"values": []}, "parameters": parameters}}
+    return {"json_schema_extra": {"default": [], "parameters": parameters}}
 
 
 @field_builder(FieldType.COLOUR_PALETTE)
