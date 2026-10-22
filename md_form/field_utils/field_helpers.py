@@ -652,6 +652,16 @@ def orderable_sample_metadata_columns_field(
     return result
 
 
+@field_builder(FieldType.COLOUR_PALETTE)
+def colour_palette_field() -> Dict[str, Any]:
+    """Pick one of the organisation's colour palettes; the value is its id.
+
+    The frontend also offers "None" (a null value), and only shows the field
+    when the workspace_colour_palettes feature flag is on.
+    """
+    return {}
+
+
 @field_builder(FieldType.SAMPLE_METADATA_COLUMNS)
 def sample_metadata_columns_field(
     datasets_ref: str = "input_datasets",

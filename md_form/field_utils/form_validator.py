@@ -135,6 +135,9 @@ _ENTITY_LISTS_FIELD_TYPE = FieldType.ENTITY_LISTS.value  # "ProteinLists"
 # fieldType of a single selected entity list (see field_helpers.entity_list_field).
 _ENTITY_LIST_FIELD_TYPE = FieldType.ENTITY_LIST.value  # "ProteinList"
 
+# fieldType of a selected colour palette (see field_helpers.colour_palette_field).
+_COLOUR_PALETTE_FIELD_TYPE = FieldType.COLOUR_PALETTE.value  # "ColourPalette"
+
 # fieldType of the column used to label entities (see field_helpers.entity_title_field).
 _ENTITY_TITLE_FIELD_TYPE = FieldType.ENTITY_TITLE.value  # "EntityTitle"
 
@@ -565,6 +568,10 @@ def _validate_field(name: str, spec: Dict[str, Any], data: Dict[str, Any]) -> Li
     # An entity-list value is the selected list's id.
     if spec.get("fieldType") == _ENTITY_LIST_FIELD_TYPE and not isinstance(value, str):
         return [FieldError(name, f"must be an entity list id, got {value!r}")]
+
+    # A colour-palette value is the selected palette's id.
+    if spec.get("fieldType") == _COLOUR_PALETTE_FIELD_TYPE and not isinstance(value, str):
+        return [FieldError(name, f"must be a colour palette id, got {value!r}")]
 
     # An entity-title value is one of the title columns of its entity type.
     if spec.get("fieldType") == _ENTITY_TITLE_FIELD_TYPE:

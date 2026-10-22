@@ -10,7 +10,7 @@ from field_utils.field_helpers import (
     sample_metadata_value_field, sample_metadata_columns_field,
     sample_metadata_values_filter_field, entity_lists_field, databases_field, dataset_param_multiple_field,
     reference_data_file_field, dataset_table_value_field, entity_list_entity_ids_field, entity_list_field, entity_title_field,
-    orderable_sample_metadata_columns_field,
+    orderable_sample_metadata_columns_field, colour_palette_field,
     plot_size_field, radio_selection_field, selection_type_field, scientific_notation_field,
     fold_change_threshold_field, FieldDataType, EntityType
 )
@@ -1842,3 +1842,32 @@ class TestBlobField:
     def test_blob_field_rejects_wrong_types(self, kwargs):
         with pytest.raises((TypeError, TypeCheckError)):
             blob_field(**kwargs)
+
+
+class TestColourPaletteField:
+    """Test cases for the colour_palette_field function"""
+
+    def test_colour_palette_field_basic(self):
+        field = colour_palette_field()
+
+        assert isinstance(field, FieldInfo)
+        assert field.json_schema_extra["fieldType"] == FieldType.COLOUR_PALETTE
+        assert "parameters" not in field.json_schema_extra
+        assert field.default is None
+
+    def test_colour_palette_field_translates(self):
+        class _Form(MdDatasetBaseModel):
+            colour_palette_id: Optional[str] = colour_palette_field(
+                name="Color Palette",
+                group="Visual",
+                when=When.not_equals("sample_information.length", 0),
+            )
+
+        assert translate_payload(_Form.model_json_schema())["colour_palette_id"] == {
+            "default": None,
+            "fieldType": "ColourPalette",
+            "group": "Visual",
+            "md-field-order": 0,
+            "name": "Color Palette",
+            "when": When.not_equals("sample_information.length", 0).as_dict(),
+        }

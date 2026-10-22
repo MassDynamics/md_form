@@ -15,6 +15,7 @@ from field_utils import (
     MdDatasetBaseModel,
     blob_field,
     boolean_field,
+    colour_palette_field,
     condition_column_field,
     condition_comparisons_field,
     condition_comparison_field,
@@ -3954,3 +3955,24 @@ class TestBlob:
     @pytest.mark.parametrize("data", [{}, {"notes": None}, {"notes": ""}])
     def test_required_field_missing(self, definition, data):
         assert _errors(validate_form(definition, data)) == {("notes", "is required")}
+
+
+class TestColourPalette:
+    """A colour palette value is the selected palette's id, or None for no palette."""
+
+    class _Form(MdDatasetBaseModel):
+        colour_palette_id: Optional[str] = colour_palette_field()
+
+    @pytest.fixture()
+    def definition(self):
+        return translate_payload(self._Form.model_json_schema())
+
+    @pytest.mark.parametrize("value", ["9a68a92a-3f87-4fb0-971c-e88bc6b8e464", None])
+    def test_valid_value(self, definition, value):
+        assert validate_form(definition, {"colour_palette_id": value}).is_valid
+
+    @pytest.mark.parametrize("value", [1, True, ["abc"], {"id": "abc"}])
+    def test_must_be_a_palette_id(self, definition, value):
+        assert _errors(validate_form(definition, {"colour_palette_id": value})) == {
+            ("colour_palette_id", f"must be a colour palette id, got {value!r}"),
+        }
