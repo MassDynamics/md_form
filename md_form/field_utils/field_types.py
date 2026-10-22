@@ -27,6 +27,7 @@ class FieldType(str, Enum):
     ENTITY_TITLE = "EntityTitle"
     ORDERABLE_SAMPLE_METADATA_COLUMNS = "OrderableSampleMetadataColumns"
     COLOUR_PALETTE = "ColourPalette"
+    PAIRWISE_CONDITION_PAIRS = "PairwiseConditionPairs"
     DATABASES = "Databases"
     REFERENCE_DATA_FILE = "ReferenceDataFile"
     DATASET_TABLE_VALUE = "DatasetTableValue"

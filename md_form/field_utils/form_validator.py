@@ -49,6 +49,9 @@ runtime, without needing the original Pydantic model. It enforces:
   ``{"column": ..., "value": [...]}`` objects,
 * ``DatasetParamMultiple`` values: a list of different, non-empty database
   names,
+* ``PairwiseConditionPairs`` values: ``{"values": [{"condition_pair": [...],
+  "left": ..., "right": ...}, ...]}``, with different two-condition pairs
+  whose optional ``left`` and ``right`` are its two conditions,
 * ``OrderableSampleMetadataColumns`` values: a list of column objects with
   different, non-empty ``field`` names and known ``field_type``, ``order``
   and ``type`` values, where a ``"custom"`` order lists its
@@ -57,8 +60,10 @@ runtime, without needing the original Pydantic model. It enforces:
 * dataset-selection fields against a supplied ``datasets`` list (see the
   ``datasets`` argument of :func:`validate_form`), including that each
   selected dataset has the entity type chosen in an ``EntityType`` field
-  pointing at it, and that the databases picked in a ``DatasetParamMultiple``
-  field are recorded in its dataset's job run params.
+  pointing at it, that the databases picked in a ``DatasetParamMultiple``
+  field are recorded in its dataset's job run params, and that the condition
+  pairs picked in a ``PairwiseConditionPairs`` field are comparisons its
+  dataset was run with.
 
 Beyond the boolean, number and dataset-table-value fields above, ``fieldType`` is treated as a
 frontend widget hint rather than a reliable data type, so it is not used to
@@ -134,6 +139,10 @@ _ENTITY_LISTS_FIELD_TYPE = FieldType.ENTITY_LISTS.value  # "ProteinLists"
 
 # fieldType of a single selected entity list (see field_helpers.entity_list_field).
 _ENTITY_LIST_FIELD_TYPE = FieldType.ENTITY_LIST.value  # "ProteinList"
+
+# fieldType of the condition pairs picked from a pairwise dataset
+# (see field_helpers.pairwise_condition_pairs_field).
+_PAIRWISE_CONDITION_PAIRS_FIELD_TYPE = FieldType.PAIRWISE_CONDITION_PAIRS.value  # "PairwiseConditionPairs"
 
 # fieldType of a selected colour palette (see field_helpers.colour_palette_field).
 _COLOUR_PALETTE_FIELD_TYPE = FieldType.COLOUR_PALETTE.value  # "ColourPalette"
@@ -282,6 +291,7 @@ def validate_form(
 
     errors.extend(_check_datasets(fields, data, datasets))
     errors.extend(_check_dataset_params(fields, data, datasets))
+    errors.extend(_check_dataset_condition_pairs(fields, data, datasets))
 
     if not allow_unknown:
         for key in data:
@@ -412,6 +422,59 @@ def _check_dataset_params(
             if database not in available:
                 errors.append(FieldError(
                     name, f"dataset {dataset.get('name', dataset['id'])!r} does not have database {database!r}"
+                ))
+    return errors
+
+
+def _check_dataset_condition_pairs(
+    fields: Dict[str, Any],
+    data: Dict[str, Any],
+    datasets: Optional[List[Dict[str, Any]]],
+) -> List[FieldError]:
+    """Check that the pairs picked in ``PairwiseConditionPairs`` fields were compared.
+
+    Like the frontend, the pairs on offer are the
+    ``condition_comparisons.condition_comparison_pairs`` in the job run params
+    of the first dataset selected in the field named by
+    ``parameters.datasetsSearch.ref``, and only a ``PAIRWISE`` dataset offers
+    any. A pair must match one exactly, in the same order. A field is skipped
+    when it is inactive, unset or malformed, when ``datasets`` is not given or
+    lacks that dataset (the ``Datasets`` field reports those), or when the
+    dataset's job run params hold no pairs.
+    """
+    if datasets is None:
+        return []
+    by_id = {d["id"]: d for d in datasets if isinstance(d, dict) and "id" in d}
+    errors: List[FieldError] = []
+    for name, spec in fields.items():
+        if spec.get("fieldType") != _PAIRWISE_CONDITION_PAIRS_FIELD_TYPE:
+            continue
+        when = spec.get("when")
+        if when and not evaluate_when(when, data):
+            continue
+        value = data.get(name)
+        # A malformed value is reported by _validate_field.
+        if _is_absent(value) or _check_pairwise_condition_pairs_shape(name, value):
+            continue
+        search = (spec.get("parameters") or {}).get("datasetsSearch")
+        if not isinstance(search, dict) or _is_absent(data.get(search.get("ref"))):
+            continue
+        dataset = by_id.get(_selected_dataset_ids(data[search["ref"]])[0])
+        if dataset is None:
+            continue
+        dataset_name = dataset.get("name", dataset["id"])
+        if dataset.get("type") != "PAIRWISE":
+            errors.append(FieldError(name, f"dataset {dataset_name!r} is not a PAIRWISE dataset, so has no condition pairs"))
+            continue
+        params = dataset.get("job_run_params")
+        comparisons = params.get("condition_comparisons") if isinstance(params, dict) else None
+        available = comparisons.get("condition_comparison_pairs") if isinstance(comparisons, dict) else None
+        if not isinstance(available, list) or not available:
+            continue
+        for item in value["values"]:
+            if item["condition_pair"] not in available:
+                errors.append(FieldError(
+                    name, f"dataset {dataset_name!r} does not have the condition pair {item['condition_pair']!r}"
                 ))
     return errors
 
@@ -568,6 +631,13 @@ def _validate_field(name: str, spec: Dict[str, Any], data: Dict[str, Any]) -> Li
     # An entity-list value is the selected list's id.
     if spec.get("fieldType") == _ENTITY_LIST_FIELD_TYPE and not isinstance(value, str):
         return [FieldError(name, f"must be an entity list id, got {value!r}")]
+
+    # A pairwise-condition-pairs value is {"values": [{"condition_pair": [...],
+    # "left", "right"}, ...]}. Each malformed pair is reported.
+    if spec.get("fieldType") == _PAIRWISE_CONDITION_PAIRS_FIELD_TYPE:
+        shape_errors = _check_pairwise_condition_pairs_shape(name, value)
+        if shape_errors:
+            return shape_errors
 
     # A colour-palette value is the selected palette's id.
     if spec.get("fieldType") == _COLOUR_PALETTE_FIELD_TYPE and not isinstance(value, str):
@@ -1152,6 +1222,45 @@ def _check_sample_metadata_values_filter_shape(
         filter_value = item.get("value")
         if not isinstance(filter_value, list) or not all(isinstance(v, str) for v in filter_value):
             errors.append(FieldError(name, f"filter {number} 'value' must be a list of strings, got {filter_value!r}"))
+    return errors
+
+
+def _check_pairwise_condition_pairs_shape(name: str, value: Any) -> List[FieldError]:
+    """Ensure a value is ``{"values": [{"condition_pair": [c1, c2], "left": ..., "right": ...}, ...]}``.
+
+    Each ``condition_pair`` is two different, non-empty condition names, and
+    no pair is picked twice. ``left`` and ``right`` are only sent when the
+    conditions can be reordered, so may be missing or ``None``; otherwise
+    each must be one of the pair's conditions, and they must differ. Other
+    keys are allowed. Pairs are numbered from 1 in the messages, as a user
+    would count them.
+    """
+    if not isinstance(value, dict) or not isinstance(value.get("values"), list):
+        return [FieldError(name, "must be an object with a 'values' list of condition pairs")]
+    errors: List[FieldError] = []
+    seen: List[List[str]] = []
+    for number, item in enumerate(value["values"], start=1):
+        pair = item.get("condition_pair") if isinstance(item, dict) else None
+        if (
+            not isinstance(pair, list)
+            or len(pair) != 2
+            or not all(isinstance(c, str) and c != "" for c in pair)
+            or pair[0] == pair[1]
+        ):
+            errors.append(FieldError(
+                name, f"pair {number} must be an object with a 'condition_pair' of two different conditions, got {item!r}"
+            ))
+            continue
+        if pair in seen:
+            errors.append(FieldError(name, f"condition pair {pair!r} is selected more than once"))
+            continue
+        seen.append(pair)
+        left, right = item.get("left"), item.get("right")
+        for key, condition in (("left", left), ("right", right)):
+            if condition is not None and condition not in pair:
+                errors.append(FieldError(name, f"pair {pair!r} '{key}' {condition!r} is not one of its conditions"))
+        if left is not None and left == right:
+            errors.append(FieldError(name, f"pair {pair!r} 'left' and 'right' must be different conditions"))
     return errors
 
 

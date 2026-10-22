@@ -652,6 +652,37 @@ def orderable_sample_metadata_columns_field(
     return result
 
 
+@field_builder(FieldType.PAIRWISE_CONDITION_PAIRS)
+@typechecked
+def pairwise_condition_pairs_field(
+    datasets_ref: str = "input_datasets",
+    filterable: Optional[bool] = None,
+    sortable: Optional[bool] = None,
+    conditions_orderable: Optional[bool] = None,
+) -> Dict[str, Any]:
+    """Pick condition pairs from the comparisons a pairwise dataset was run with.
+
+    The value is `{"values": [{"condition_pair": ["C1", "C2"]}, ...]}`; with
+    `conditions_orderable` each pair also carries `"left"` and `"right"`, the
+    pair's conditions in the order chosen. The default is `{"values": []}`.
+
+    The pairs offered are the `condition_comparisons.condition_comparison_pairs`
+    in the job run params of the PAIRWISE dataset in the field named by
+    `datasets_ref`. `filterable` lets the user pick some of them (otherwise
+    all are selected), and `sortable` lets them be reordered. Each of those is
+    omitted when unset so the frontend applies its own default.
+    """
+    parameters: Dict[str, Any] = {"datasetsSearch": {"ref": datasets_ref}}
+    if filterable is not None:
+        parameters["filterable"] = filterable
+    if sortable is not None:
+        parameters["sortable"] = sortable
+    if conditions_orderable is not None:
+        parameters["conditionsOrderable"] = conditions_orderable
+
+    return {"json_schema_extra": {"default": {"values": []}, "parameters": parameters}}
+
+
 @field_builder(FieldType.COLOUR_PALETTE)
 def colour_palette_field() -> Dict[str, Any]:
     """Pick one of the organisation's colour palettes; the value is its id.

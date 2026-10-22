@@ -188,6 +188,14 @@ knowledge_bases = select_field(
   - `datasets_ref` names the field holding the dataset whose sample metadata columns are offered; `entity_type`
     also offers that entity as a column (with its parent types when `include_hierarchical_entities=True`),
     `orderable_protein_ids=True` lets an entity column be custom-ordered, and `allow_dataset=True` offers the dataset
+- `pairwise_condition_pairs_field(datasets_ref="input_datasets", filterable=None, sortable=None, conditions_orderable=None)`
+  - Picks condition pairs from the comparisons a PAIRWISE dataset was run with (`fieldType: "PairwiseConditionPairs"`)
+  - The value is `{"values": [{"condition_pair": ["C1", "C2"], "left": "C2", "right": "C1"}, ...]}`, defaulting to
+    `{"values": []}`; `left` and `right` are only sent with `conditions_orderable=True`
+  - Each pair is two different conditions, picked once; `left` and `right` are its conditions, in either order
+  - With `datasets`, each pair must be in the dataset's `job_run_params.condition_comparisons.condition_comparison_pairs`
+    (in the same order), and the dataset must be PAIRWISE
+  - `filterable=True` lets the user pick some pairs (otherwise all are selected); `sortable=True` lets them be reordered
 - `colour_palette_field()`
   - Picks one of the organisation's colour palettes (`fieldType: "ColourPalette"`); the value is its id, a string,
     or `None` for no palette

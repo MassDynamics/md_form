@@ -1,5 +1,5 @@
 import pytest
-from typing import Dict, Any, List, Optional, get_args
+from typing import Dict, Any, List, Optional, Union, get_args
 from typeguard import TypeCheckError
 from pydantic.fields import FieldInfo
 from field_utils.field_helpers import (
@@ -11,6 +11,7 @@ from field_utils.field_helpers import (
     sample_metadata_values_filter_field, entity_lists_field, databases_field, dataset_param_multiple_field,
     reference_data_file_field, dataset_table_value_field, entity_list_entity_ids_field, entity_list_field, entity_title_field,
     orderable_sample_metadata_columns_field, colour_palette_field,
+    pairwise_condition_pairs_field,
     plot_size_field, radio_selection_field, selection_type_field, scientific_notation_field,
     fold_change_threshold_field, FieldDataType, EntityType
 )
@@ -1871,3 +1872,53 @@ class TestColourPaletteField:
             "name": "Color Palette",
             "when": When.not_equals("sample_information.length", 0).as_dict(),
         }
+
+
+class TestPairwiseConditionPairsField:
+    """Test cases for the pairwise_condition_pairs_field function"""
+
+    def test_pairwise_condition_pairs_field_basic(self):
+        field = pairwise_condition_pairs_field()
+
+        assert isinstance(field, FieldInfo)
+        assert field.json_schema_extra["fieldType"] == FieldType.PAIRWISE_CONDITION_PAIRS
+        assert field.json_schema_extra["parameters"] == {"datasetsSearch": {"ref": "input_datasets"}}
+        assert field.json_schema_extra["default"] == {"values": []}
+        assert field.default == {"values": []}
+
+    def test_pairwise_condition_pairs_field_with_params(self):
+        field = pairwise_condition_pairs_field(
+            datasets_ref="dataset_id", filterable=True, sortable=False, conditions_orderable=True,
+        )
+
+        assert field.json_schema_extra["parameters"] == {
+            "datasetsSearch": {"ref": "dataset_id"},
+            "filterable": True,
+            "sortable": False,
+            "conditionsOrderable": True,
+        }
+
+    def test_pairwise_condition_pairs_field_translates(self):
+        class _Form(MdDatasetBaseModel):
+            condition_pairs: Optional[Union[dict, List[Any]]] = pairwise_condition_pairs_field(
+                datasets_ref="dataset_id",
+                filterable=True,
+                name="Condition Pairs",
+                group="Data",
+                when=When.is_present("dataset_id"),
+            )
+
+        assert translate_payload(_Form.model_json_schema())["condition_pairs"] == {
+            "default": {"values": []},
+            "fieldType": "PairwiseConditionPairs",
+            "group": "Data",
+            "md-field-order": 0,
+            "name": "Condition Pairs",
+            "parameters": {"datasetsSearch": {"ref": "dataset_id"}, "filterable": True},
+            "when": When.is_present("dataset_id").as_dict(),
+        }
+
+    @pytest.mark.parametrize("kwargs", [{"datasets_ref": {"ref": "x"}}, {"filterable": "yes"}, {"conditions_orderable": 1}])
+    def test_pairwise_condition_pairs_field_rejects_wrong_types(self, kwargs):
+        with pytest.raises(TypeCheckError):
+            pairwise_condition_pairs_field(**kwargs)
