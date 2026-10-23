@@ -2275,6 +2275,30 @@ class TestExperimentDesign:
             "must be a table (an object mapping column names to lists)",
         ) in _errors(result)
 
+    def test_column_names_ref_names_the_required_columns(self):
+        class _AxisForm(MdDatasetBaseModel):
+            x_axis_list: Optional[List[dict]] = orderable_sample_metadata_columns_field(datasets_ref="dataset_id")
+            sample_metadata: dict = experiment_design_field(
+                datasets_ref="dataset_id",
+                column_names_ref="x_axis_list[].field",
+                hidden=True,
+            )
+
+        definition = translate_payload(_AxisForm.model_json_schema())
+        data = {
+            "x_axis_list": [{"field": "condition"}, {"field": "batch"}],
+            "sample_metadata": {
+                "sample_name": ["Heart_1", "Heart_2"],
+                "condition": ["Heart", "Brain"],
+            },
+        }
+        result = validate_form(definition, data)
+        assert not result.is_valid
+        assert ("sample_metadata", "table columns missing columns: 'batch'") in _errors(result)
+
+        data["sample_metadata"]["batch"] = ["B1", "B2"]
+        assert validate_form(definition, data).is_valid
+
 
 class TestSampleMetadataTableShape:
     """The SampleMetadataTable shape is enforced whenever the field is active

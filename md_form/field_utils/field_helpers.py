@@ -264,15 +264,31 @@ def multiple_select_field(
 
 
 @field_builder(FieldType.EXPERIMENT_DESIGN)
-def experiment_design_field() -> Dict[str, Any]:
-    """Create an experiment design field."""
+@typechecked
+def experiment_design_field(
+    datasets_ref: str = "input_datasets",
+    column_names_ref: Union[str, List[str]] = ["condition_column", "control_variables[].column"],
+    hidden: Optional[bool] = None,
+) -> Dict[str, Any]:
+    """Create an experiment design (sample metadata table) field.
+
+    `datasets_ref` names the field holding the datasets whose sample metadata
+    fills the table. `column_names_ref` names the fields whose values are
+    columns the table must carry, either a plain field ("condition_column") or
+    an array projection ("x_axis_list[].field"). `hidden` still builds and sends
+    the table but doesn't show it, and is omitted when unset.
+    """
+    parameters: Dict[str, Any] = {
+        "datasetsSearch": {"ref": datasets_ref},
+        # Copied so a caller editing the schema can't change the shared default.
+        "columnNames": {"ref": column_names_ref if isinstance(column_names_ref, str) else list(column_names_ref)},
+    }
+    if hidden is not None:
+        parameters["hidden"] = hidden
     return {
         "json_schema_extra": {
             "name": "Sample Metadata",
-            "parameters": {
-                "datasetsSearch": {"ref": "input_datasets"},
-                "columnNames": {"ref": ["condition_column", "control_variables[].column"]}
-            }
+            "parameters": parameters,
         }
     }
 

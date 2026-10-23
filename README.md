@@ -119,7 +119,11 @@ knowledge_bases = select_field(
 
 #### Domain-specific helpers
 
-- `experiment_design_field()`
+- `experiment_design_field(datasets_ref="input_datasets", column_names_ref=["condition_column", "control_variables[].column"], hidden=None)`
+  - `datasets_ref` names the field holding the datasets whose sample metadata fills the table
+  - `column_names_ref` names the fields holding columns the table must carry, as one path or a list of paths:
+    a plain field (`"condition_column"`) or an array projection (`"x_axis_list[].field"`)
+  - `hidden=True` still builds and sends the table but doesn't show it
 - `condition_column_field(datasets_ref="input_datasets")`
   - `datasets_ref` names the field holding the datasets whose sample metadata columns are offered
 - `condition_comparisons_field()`

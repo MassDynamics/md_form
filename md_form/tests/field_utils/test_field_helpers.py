@@ -459,6 +459,53 @@ class TestExperimentDesignField:
         assert isinstance(field, FieldInfo)
         assert field.json_schema_extra["fieldType"] == FieldType.EXPERIMENT_DESIGN
         assert field.json_schema_extra["name"] == "Sample Metadata"
+        assert field.json_schema_extra["parameters"] == {
+            "datasetsSearch": {"ref": "input_datasets"},
+            "columnNames": {"ref": ["condition_column", "control_variables[].column"]},
+        }
+
+    def test_experiment_design_field_with_arguments(self):
+        field = experiment_design_field(
+            datasets_ref="dataset_id",
+            column_names_ref="x_axis_list[].field",
+            hidden=True,
+        )
+
+        assert field.json_schema_extra["parameters"] == {
+            "datasetsSearch": {"ref": "dataset_id"},
+            "columnNames": {"ref": "x_axis_list[].field"},
+            "hidden": True,
+        }
+
+    def test_experiment_design_field_with_column_names_ref_list(self):
+        field = experiment_design_field(column_names_ref=["condition_column", "x_axis_list[].field"])
+
+        assert field.json_schema_extra["parameters"]["columnNames"] == {
+            "ref": ["condition_column", "x_axis_list[].field"]
+        }
+
+    def test_experiment_design_field_with_hidden_false(self):
+        field = experiment_design_field(hidden=False)
+
+        assert field.json_schema_extra["parameters"]["hidden"] is False
+
+    def test_experiment_design_field_rejects_bad_arguments(self):
+        with pytest.raises(TypeCheckError):
+            experiment_design_field(datasets_ref={"ref": "dataset_id"})
+        with pytest.raises(TypeCheckError):
+            experiment_design_field(column_names_ref=[1])
+        with pytest.raises(TypeCheckError):
+            experiment_design_field(hidden="yes")
+
+    def test_experiment_design_field_keeps_other_builder_arguments(self):
+        field = experiment_design_field(
+            datasets_ref="dataset_id",
+            group="Plot Configuration",
+            when=When.is_present("dataset_id"),
+        )
+
+        assert field.json_schema_extra["group"] == "Plot Configuration"
+        assert field.json_schema_extra["parameters"]["datasetsSearch"] == {"ref": "dataset_id"}
 
 
 class TestConditionColumnField:
