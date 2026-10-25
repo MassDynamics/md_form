@@ -3772,6 +3772,17 @@ class TestSelectionType:
         single_entity = translate_payload(_SingleEntityForm.model_json_schema())
         assert validate_form(single_entity, {"selection_type": "single_entity"}).is_valid
 
+    def test_all_only_when_included(self, definition):
+        assert _errors(validate_form(definition, {"entity_type": "protein", "selection_type": "all"})) == {
+            ("selection_type", "'all' is not one of the allowed options ['selection', 'list']"),
+        }
+
+        class _AllForm(MdDatasetBaseModel):
+            selection_type: Optional[str] = selection_type_field(include_all=True)
+
+        all_form = translate_payload(_AllForm.model_json_schema())
+        assert validate_form(all_form, {"selection_type": "all"}).is_valid
+
 
 class TestEntityList:
     """An entity list value is the id of the single selected list."""

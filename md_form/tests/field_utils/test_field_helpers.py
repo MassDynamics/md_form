@@ -1673,7 +1673,27 @@ class TestSelectionTypeField:
         with pytest.raises(ValueError, match="include_single_entity"):
             selection_type_field(default="single_entity")
 
-    @pytest.mark.parametrize("default", ["all", "Selection", 1])
+    def test_selection_type_field_with_all(self):
+        field = selection_type_field(include_all=True, default="all")
+
+        assert field.json_schema_extra["parameters"]["options"] == self.OPTIONS + [
+            {"name": "All", "value": "all"},
+        ]
+        assert field.default == "all"
+
+    def test_selection_type_field_with_single_entity_and_all(self):
+        field = selection_type_field(include_single_entity=True, include_all=True)
+
+        assert field.json_schema_extra["parameters"]["options"] == self.OPTIONS + [
+            {"name": "Single Entity", "value": "single_entity"},
+            {"name": "All", "value": "all"},
+        ]
+
+    def test_selection_type_field_all_default_needs_the_option(self):
+        with pytest.raises(ValueError, match="include_all"):
+            selection_type_field(default="all")
+
+    @pytest.mark.parametrize("default", ["everything", "Selection", 1])
     def test_selection_type_field_rejects_other_defaults(self, default):
         with pytest.raises(TypeCheckError):
             selection_type_field(default=default)
