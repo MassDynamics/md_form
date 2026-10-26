@@ -52,6 +52,11 @@ runtime, without needing the original Pydantic model. It enforces:
 * ``PairwiseConditionPairs`` values: ``[{"condition_pair": [...], "left": ...,
   "right": ...}, ...]``, with different two-condition pairs
   whose optional ``left`` and ``right`` are its two conditions,
+* ``DatasetTableValues`` values: ``[{"name": ..., ...}, ...]``, with
+  different, non-empty column names. With ``parameters.showCustomFieldSettings``
+  false a column is ``{"name", "value"}``; otherwise it is ``{"name",
+  "replaceValues"}`` plus its optional display settings (``label``, ``type``,
+  ``decimalPlaces`` and ``renderedValuesReplace``), each of a known shape,
 * ``OrderableSampleMetadataColumns`` values: a list of column objects with
   different, non-empty ``field`` names and known ``field_type``, ``order``
   and ``type`` values, where a ``"custom"`` order lists its
@@ -167,6 +172,40 @@ _ORDERABLE_COLUMNS_FIELD_TYPE = FieldType.ORDERABLE_SAMPLE_METADATA_COLUMNS.valu
 _ORDERABLE_COLUMN_FIELD_TYPES = ["sample_metadata", "entity", "dataset"]
 _ORDERABLE_COLUMN_ORDERS = ["asc", "desc", "none", "custom"]
 _ORDERABLE_COLUMN_TYPES = ["categorical", "numeric"]
+
+# fieldType of the picked table columns (see field_helpers.dataset_table_values_field),
+# and the keys each column may have: just the column without custom field
+# settings, and the column the frontend's DatasetTableValueField writes with
+# them. A key maps to "string", "number", "boolean", "count" (an int >= 0), a
+# list of allowed values, or a dict of the keys of a nested object. A missing
+# or None key is left unset; which keys are required is checked separately.
+_DATASET_TABLE_VALUES_FIELD_TYPE = FieldType.DATASET_TABLE_VALUES.value  # "DatasetTableValues"
+_DATASET_TABLE_VALUES_PLAIN_COLUMN_KEYS: Dict[str, Any] = {
+    "name": "string",
+    "value": "string",
+}
+_DATASET_TABLE_VALUES_SETTINGS_COLUMN_KEYS: Dict[str, Any] = {
+    "name": "string",
+    "label": "string",
+    "type": ["percentage", "decimal"],
+    "decimalPlaces": "count",
+    "replaceValues": "boolean",
+    "renderedValuesReplace": {
+        "condition": {
+            "field": "string",
+            "operation": ["equal", "notEqual", "lessThan", "lessThanOrEqual", "greaterThan", "greaterThanOrEqual"],
+            "value": "scalar",
+        },
+        "replacementType": ["text", "computed"],
+        "text": "string",
+        "computed": {
+            "name": "string",
+            "aggregation": ["sum", "average", "min", "max"],
+            "operation": ["multiply", "divide", "add", "subtract"],
+            "operationValue": "number",
+        },
+    },
+}
 
 _ENTITY_TITLE_HIERARCHY: Dict[str, List[str]] = {
     "protein": ["protein"],
@@ -648,6 +687,13 @@ def _validate_field(name: str, spec: Dict[str, Any], data: Dict[str, Any]) -> Li
         title_errors = _check_entity_title(name, spec, value, data)
         if title_errors:
             return title_errors
+
+    # A dataset-table-values value is a list of column objects. Each malformed
+    # column is reported.
+    if spec.get("fieldType") == _DATASET_TABLE_VALUES_FIELD_TYPE:
+        shape_errors = _check_dataset_table_values_shape(name, spec, value)
+        if shape_errors:
+            return shape_errors
 
     # An orderable-columns value is a list of column objects. Each malformed
     # column is reported.
@@ -1316,6 +1362,124 @@ def _check_orderable_columns_shape(name: str, value: Any) -> List[FieldError]:
                     name, f"column {field!r} 'entity_label' must be one of {titles}, got {label!r}"
                 ))
     return errors
+
+
+def _check_dataset_table_values_shape(name: str, spec: Dict[str, Any], value: Any) -> List[FieldError]:
+    """Ensure a value is a list of picked table columns.
+
+    Each column is ``{"name": ..., ...}``: ``name`` is required, must be a
+    non-empty string and must not repeat. With
+    ``parameters.showCustomFieldSettings`` false the other keys must be in
+    ``_DATASET_TABLE_VALUES_PLAIN_COLUMN_KEYS``; otherwise (the frontend's
+    default) they must be in ``_DATASET_TABLE_VALUES_SETTINGS_COLUMN_KEYS``
+    and fit together as the frontend writes them (see
+    :func:`_check_dataset_table_value_settings`). Columns are numbered from 1
+    in the messages, as a user would count them.
+    """
+    params = spec.get("parameters")
+    with_settings = not (isinstance(params, dict) and params.get("showCustomFieldSettings") is False)
+    keys = _DATASET_TABLE_VALUES_SETTINGS_COLUMN_KEYS if with_settings else _DATASET_TABLE_VALUES_PLAIN_COLUMN_KEYS
+    if not isinstance(value, list):
+        return [FieldError(name, "must be a list of columns")]
+    errors: List[FieldError] = []
+    seen: List[str] = []
+    for number, column in enumerate(value, start=1):
+        if not isinstance(column, dict):
+            errors.append(FieldError(name, f"column {number} must be an object with a 'name', got {column!r}"))
+            continue
+        column_name = column.get("name")
+        if not isinstance(column_name, str) or column_name == "":
+            errors.append(FieldError(name, f"column {number} 'name' must be a non-empty string, got {column_name!r}"))
+            continue
+        if column_name in seen:
+            errors.append(FieldError(name, f"column {column_name!r} is selected more than once"))
+            continue
+        seen.append(column_name)
+        messages = _check_object_keys(column, keys, "")
+        if with_settings:
+            messages.extend(_check_dataset_table_value_settings(column))
+        for message in messages:
+            errors.append(FieldError(name, f"column {column_name!r} {message}"))
+    return errors
+
+
+def _check_dataset_table_value_settings(column: Dict[str, Any]) -> List[str]:
+    """Ensure a column's custom field settings fit together as the frontend writes them.
+
+    ``replaceValues`` is always written, and ``renderedValuesReplace`` only
+    (and always) when it is true, with a ``condition`` and a
+    ``replacementType``, plus ``text`` for a "text" replacement or
+    ``computed`` for a "computed" one. ``decimalPlaces`` needs a ``type``, and
+    a computed ``operationValue`` an ``operation``. Values of the wrong type
+    are left to :func:`_check_object_keys`.
+    """
+    messages: List[str] = []
+    if column.get("replaceValues") is None:
+        messages.append("'replaceValues' is required")
+    if column.get("decimalPlaces") is not None and column.get("type") is None:
+        messages.append("'decimalPlaces' is only allowed with a 'type'")
+
+    replace = column.get("renderedValuesReplace")
+    if column.get("replaceValues") is True and replace is None:
+        messages.append("'renderedValuesReplace' is required when 'replaceValues' is true")
+    elif column.get("replaceValues") is False and replace is not None:
+        messages.append("'renderedValuesReplace' is only allowed when 'replaceValues' is true")
+    if not isinstance(replace, dict):
+        return messages
+
+    if replace.get("condition") is None:
+        messages.append("'renderedValuesReplace.condition' is required")
+    replacement_type = replace.get("replacementType")
+    if replacement_type is None:
+        messages.append("'renderedValuesReplace.replacementType' is required")
+    if replacement_type == "computed" and replace.get("computed") is None:
+        messages.append("'renderedValuesReplace.computed' is required when 'replacementType' is 'computed'")
+    for key in ("text", "computed"):
+        if replacement_type in ("text", "computed") and replacement_type != key and replace.get(key) is not None:
+            messages.append(f"'renderedValuesReplace.{key}' is only allowed when 'replacementType' is '{key}'")
+
+    computed = replace.get("computed")
+    if isinstance(computed, dict) and computed.get("operationValue") is not None and computed.get("operation") is None:
+        messages.append("'renderedValuesReplace.computed.operationValue' is only allowed with an 'operation'")
+    return messages
+
+
+def _check_object_keys(obj: Dict[str, Any], keys: Dict[str, Any], prefix: str) -> List[str]:
+    """Check an object's keys against a ``_DATASET_TABLE_VALUES_SETTINGS_COLUMN_KEYS``-style table.
+
+    Returns a message for each unknown key and each value of the wrong shape,
+    naming nested keys by their dotted path from the column. ``None`` values
+    are left unset.
+    """
+    messages: List[str] = []
+    unknown = [key for key in obj if key not in keys]
+    if unknown:
+        where = f"'{prefix[:-1]}' " if prefix else ""
+        messages.append(f"{where}has unknown keys {unknown}")
+    for key, shape in keys.items():
+        v = obj.get(key)
+        if v is None:
+            continue
+        path = f"'{prefix}{key}'"
+        if isinstance(shape, dict):
+            if not isinstance(v, dict):
+                messages.append(f"{path} must be an object, got {v!r}")
+            else:
+                messages.extend(_check_object_keys(v, shape, f"{prefix}{key}."))
+        elif isinstance(shape, list):
+            if v not in shape:
+                messages.append(f"{path} must be one of {shape}, got {v!r}")
+        elif shape == "string" and not isinstance(v, str):
+            messages.append(f"{path} must be a string, got {v!r}")
+        elif shape == "boolean" and not isinstance(v, bool):
+            messages.append(f"{path} must be a boolean, got {v!r}")
+        elif shape == "count" and (isinstance(v, bool) or not isinstance(v, int) or v < 0):
+            messages.append(f"{path} must be a whole number of at least 0, got {v!r}")
+        elif shape == "number" and (isinstance(v, bool) or not isinstance(v, (int, float))):
+            messages.append(f"{path} must be a number, got {v!r}")
+        elif shape == "scalar" and (isinstance(v, bool) or not isinstance(v, (str, int, float))):
+            messages.append(f"{path} must be a string or number, got {v!r}")
+    return messages
 
 
 def _check_dataset_param_multiple_shape(name: str, value: Any) -> List[FieldError]:

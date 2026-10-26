@@ -201,6 +201,22 @@ knowledge_bases = select_field(
   - With `datasets`, each pair must be in the dataset's `job_run_params.condition_comparisons.condition_comparison_pairs`
     (in the same order), and the dataset must be PAIRWISE
   - `filterable=True` lets the user pick some pairs (otherwise all are selected); `sortable=True` lets them be reordered
+- `dataset_table_values_field(table_name, datasets_ref="input_datasets", show_custom_field_settings=None, initially_select_all=None)`
+  - Picks and orders columns of the `table_name` table (a name, or a `{"ref": "<field>"}` dict) of the datasets in the
+    `datasets_ref` field (`fieldType: "DatasetTableValues"`)
+  - The value is `[{"name": "column", ...}, ...]`; each column name is a non-empty string, picked once
+  - With `show_custom_field_settings=False` a column is `{"name": "column", "value": "column"}`, where `value` is
+    optional, and nothing else
+  - Otherwise (the frontend's default) each column carries its display settings, and nothing else:
+    - `replaceValues` (a boolean), always
+    - `label` (a string), `type` (`"percentage"` or `"decimal"`) and `decimalPlaces` (a whole number of at least 0,
+      only with a `type`)
+    - `renderedValuesReplace`, only and always when `replaceValues` is true: `{"condition": {"field", "operation",
+      "value"}, "replacementType": "text" | "computed", "text": ..., "computed": {"name", "aggregation", "operation",
+      "operationValue"}}`, with `text` only for a `"text"` replacement and `computed` only (and always) for a
+      `"computed"` one, and `operationValue` only with an `operation`
+    - Unset settings may be `None`
+  - `initially_select_all=True` picks every column when empty
 - `colour_palette_field()`
   - Picks one of the organisation's colour palettes (`fieldType: "ColourPalette"`); the value is its id, a string,
     or `None` for no palette

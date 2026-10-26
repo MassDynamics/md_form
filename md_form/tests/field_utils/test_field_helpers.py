@@ -10,7 +10,7 @@ from field_utils.field_helpers import (
     sample_metadata_value_field, sample_metadata_columns_field,
     sample_metadata_values_filter_field, entity_lists_field, databases_field, dataset_param_multiple_field,
     reference_data_file_field, dataset_table_value_field, entity_list_entity_ids_field, entity_list_field, entity_title_field,
-    orderable_sample_metadata_columns_field, colour_palette_field,
+    orderable_sample_metadata_columns_field, colour_palette_field, dataset_table_values_field,
     pairwise_condition_pairs_field,
     plot_size_field, radio_selection_field, selection_type_field, scientific_notation_field,
     fold_change_threshold_field, FieldDataType, EntityType
@@ -1989,3 +1989,64 @@ class TestPairwiseConditionPairsField:
     def test_pairwise_condition_pairs_field_rejects_wrong_types(self, kwargs):
         with pytest.raises(TypeCheckError):
             pairwise_condition_pairs_field(**kwargs)
+
+
+class TestDatasetTableValuesField:
+    """Test cases for the dataset_table_values_field function"""
+
+    def test_dataset_table_values_field_basic(self):
+        field = dataset_table_values_field(table_name="Protein_Intensity")
+
+        assert isinstance(field, FieldInfo)
+        assert field.json_schema_extra["fieldType"] == FieldType.DATASET_TABLE_VALUES
+        assert field.json_schema_extra["parameters"] == {
+            "datasetsSearch": {"ref": "input_datasets"},
+            "tableName": "Protein_Intensity",
+        }
+
+    def test_dataset_table_values_field_translates(self):
+        when = When.all_of(When.is_present("dataset_id"), When.is_present("table_name"))
+
+        class _Form(MdDatasetBaseModel):
+            column_names: Optional[List[dict]] = dataset_table_values_field(
+                table_name={"ref": "table_name"},
+                datasets_ref="dataset_id",
+                show_custom_field_settings=False,
+                initially_select_all=True,
+                name="Dataset Table Values",
+                description="The columns to show.",
+                group="Data",
+                rules=[is_required()],
+                when=when,
+            )
+
+        assert translate_payload(_Form.model_json_schema())["column_names"] == {
+            "default": None,
+            "description": "The columns to show.",
+            "fieldType": "DatasetTableValues",
+            "group": "Data",
+            "md-field-order": 0,
+            "name": "Dataset Table Values",
+            "parameters": {
+                "datasetsSearch": {"ref": "dataset_id"},
+                "tableName": {"ref": "table_name"},
+                "showCustomFieldSettings": False,
+                "initiallySelectAll": True,
+            },
+            "rules": [{"name": "is_required"}],
+            "when": when.as_dict(),
+        }
+
+    @pytest.mark.parametrize("kwargs", [
+        {"table_name": 1},
+        {"table_name": "t", "datasets_ref": {"ref": "x"}},
+        {"table_name": "t", "show_custom_field_settings": "no"},
+        {"table_name": "t", "initially_select_all": 1},
+    ])
+    def test_dataset_table_values_field_rejects_wrong_types(self, kwargs):
+        with pytest.raises(TypeCheckError):
+            dataset_table_values_field(**kwargs)
+
+    def test_dataset_table_values_field_needs_a_table_name(self):
+        with pytest.raises(TypeError):
+            dataset_table_values_field()

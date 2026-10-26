@@ -885,6 +885,38 @@ def dataset_table_value_field(
     return {"json_schema_extra": {"parameters": parameters}}
 
 
+@field_builder(FieldType.DATASET_TABLE_VALUES)
+@typechecked
+def dataset_table_values_field(
+    table_name: Union[str, Dict[str, Any]],
+    datasets_ref: str = "input_datasets",
+    show_custom_field_settings: Optional[bool] = None,
+    initially_select_all: Optional[bool] = None,
+) -> Dict[str, Any]:
+    """Pick and order columns of a dataset's table, each with optional display settings.
+
+    The columns offered are the headers of the `table_name` table (a table
+    name, or a `{"ref": "<field>"}` dict) in the datasets of the field named
+    by `datasets_ref`. The value is `[{"name": <column>, ...}, ...]`.
+    `show_custom_field_settings=False` hides each column's label, type and
+    replacement settings, so a column is just `{"name", "value"}`; otherwise
+    it is `{"name", "replaceValues", ...}` with those settings.
+    `initially_select_all=True` picks every column when the field is empty.
+    Each is omitted when unset so the frontend applies its own default, which
+    shows the settings and doesn't select all.
+    """
+    parameters: Dict[str, Any] = {
+        "datasetsSearch": {"ref": datasets_ref},
+        "tableName": table_name,
+    }
+    if show_custom_field_settings is not None:
+        parameters["showCustomFieldSettings"] = show_custom_field_settings
+    if initially_select_all is not None:
+        parameters["initiallySelectAll"] = initially_select_all
+
+    return {"json_schema_extra": {"parameters": parameters}}
+
+
 @field_builder(FieldType.ENTITY_LISTS)
 @typechecked
 def entity_lists_field(

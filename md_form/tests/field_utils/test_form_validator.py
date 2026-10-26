@@ -22,6 +22,7 @@ from field_utils import (
     control_variables_field,
     dataset_param_multiple_field,
     dataset_table_value_field,
+    dataset_table_values_field,
     experiment_design_field,
     fold_change_threshold_field,
     intensity_input_dataset_field,
@@ -4109,3 +4110,239 @@ class TestPairwiseConditionPairs:
     def test_dataset_without_pairs_is_not_checked(self, definition, datasets, job_run_params):
         datasets[0]["job_run_params"] = job_run_params
         assert self._validate(definition, [{"condition_pair": ["C9", "C8"]}], datasets).is_valid
+
+
+class TestDatasetTableValues:
+    """A DatasetTableValues value is [{"name": column, ...}, ...]. Without custom
+    field settings a column is {"name", "value"}; with them (the frontend's
+    default) it is {"name", "replaceValues", ...} with its display settings."""
+
+    def _definition(self, **kwargs):
+        class _Form(MdDatasetBaseModel):
+            column_names: Optional[List[dict]] = dataset_table_values_field(
+                table_name={"ref": "table_name"}, datasets_ref="dataset_id", rules=[is_required()], **kwargs,
+            )
+
+        return translate_payload(_Form.model_json_schema())
+
+    @pytest.fixture()
+    def plain(self):
+        return self._definition(show_custom_field_settings=False)
+
+    @pytest.fixture(params=[{}, {"show_custom_field_settings": True}], ids=["default", "shown"])
+    def with_settings(self, request):
+        return self._definition(**request.param)
+
+    def _errors_for(self, definition, value):
+        return _errors(validate_form(definition, {"column_names": value}))
+
+    def test_is_required(self, plain, with_settings):
+        assert self._errors_for(plain, []) == {("column_names", "is required")}
+        assert self._errors_for(with_settings, []) == {("column_names", "is required")}
+
+    @pytest.mark.parametrize("value", ["ProteinGroupId", {"name": "ProteinGroupId"}, 1])
+    def test_must_be_a_list(self, plain, with_settings, value):
+        assert self._errors_for(plain, value) == {("column_names", "must be a list of columns")}
+        assert self._errors_for(with_settings, value) == {("column_names", "must be a list of columns")}
+
+    def test_each_column_must_be_an_object_with_a_name(self, plain):
+        assert self._errors_for(plain, ["ProteinGroupId", {"value": "a"}, {"name": ""}, {"name": 1}]) == {
+            ("column_names", "column 1 must be an object with a 'name', got 'ProteinGroupId'"),
+            ("column_names", "column 2 'name' must be a non-empty string, got None"),
+            ("column_names", "column 3 'name' must be a non-empty string, got ''"),
+            ("column_names", "column 4 'name' must be a non-empty string, got 1"),
+        }
+
+    def test_column_picked_once(self, plain):
+        assert self._errors_for(plain, [{"name": "a"}, {"name": "a", "value": "a"}]) == {
+            ("column_names", "column 'a' is selected more than once"),
+        }
+
+    class TestWithoutCustomFieldSettings:
+        @pytest.mark.parametrize("value", [
+            [{"name": "ProteinGroupId"}],
+            [{"name": "ProteinGroupId", "value": "ProteinGroupId"}, {"name": "GeneNames", "value": "GeneNames"}],
+        ])
+        def test_valid_value(self, plain, value):
+            assert validate_form(plain, {"column_names": value}).is_valid
+
+        def test_value_must_be_a_string(self, plain):
+            assert _errors(validate_form(plain, {"column_names": [{"name": "a", "value": 1}]})) == {
+                ("column_names", "column 'a' 'value' must be a string, got 1"),
+            }
+
+        def test_settings_are_not_allowed(self, plain):
+            value = [{"name": "a", "replaceValues": False, "label": "A", "colour": "red"}]
+            assert _errors(validate_form(plain, {"column_names": value})) == {
+                ("column_names", "column 'a' has unknown keys ['replaceValues', 'label', 'colour']"),
+            }
+
+    class TestWithCustomFieldSettings:
+        @pytest.mark.parametrize("value", [
+            [{"name": "ProteinGroupId", "replaceValues": False}],
+            [{"name": "Intensity", "replaceValues": False, "label": "Abundance", "type": "percentage", "decimalPlaces": 0}],
+            [{"name": "Intensity", "replaceValues": False, "type": "decimal"}],
+            [{
+                "name": "Intensity",
+                "replaceValues": True,
+                "renderedValuesReplace": {
+                    "condition": {"field": "Intensity", "operation": "lessThan", "value": "0"},
+                    "replacementType": "computed",
+                    "computed": {"name": "dose", "aggregation": "sum", "operation": "multiply", "operationValue": 1.5},
+                },
+            }],
+            [{
+                "name": "Intensity",
+                "replaceValues": True,
+                "renderedValuesReplace": {
+                    "condition": {"field": "Intensity", "operation": "equal", "value": 0},
+                    "replacementType": "computed",
+                    "computed": {"name": None, "aggregation": None},
+                },
+            }],
+            [{
+                "name": "Intensity",
+                "replaceValues": True,
+                "renderedValuesReplace": {
+                    "condition": {"field": None, "operation": None, "value": None},
+                    "replacementType": "text",
+                    "text": None,
+                },
+            }],
+        ])
+        def test_valid_value(self, with_settings, value):
+            assert validate_form(with_settings, {"column_names": value}).is_valid
+
+        @pytest.mark.parametrize("value", [
+            [{"name": "ProteinGroupId"}],
+            [{"name": "ProteinGroupId", "value": "ProteinGroupId"}, {"name": "GeneNames", "value": "GeneNames"}],
+        ])
+        def test_plain_columns_are_invalid(self, with_settings, value):
+            errors = _errors(validate_form(with_settings, {"column_names": value}))
+            for column in value:
+                assert ("column_names", f"column {column['name']!r} 'replaceValues' is required") in errors
+                if "value" in column:
+                    assert ("column_names", f"column {column['name']!r} has unknown keys ['value']") in errors
+
+        def test_no_unknown_keys(self, with_settings):
+            value = [{
+                "name": "a",
+                "replaceValues": True,
+                "colour": "red",
+                "renderedValuesReplace": {
+                    "condition": {"field": "a", "op": "equal"},
+                    "replacementType": "computed",
+                    "computed": {"name": "b", "extra": 1},
+                    "other": True,
+                },
+            }]
+            assert _errors(validate_form(with_settings, {"column_names": value})) == {
+                ("column_names", "column 'a' has unknown keys ['colour']"),
+                ("column_names", "column 'a' 'renderedValuesReplace' has unknown keys ['other']"),
+                ("column_names", "column 'a' 'renderedValuesReplace.condition' has unknown keys ['op']"),
+                ("column_names", "column 'a' 'renderedValuesReplace.computed' has unknown keys ['extra']"),
+            }
+
+        def test_settings_must_have_the_right_shape(self, with_settings):
+            value = [{"name": "a", "label": ["A"], "type": "integer", "decimalPlaces": -1, "replaceValues": "yes"}]
+            assert _errors(validate_form(with_settings, {"column_names": value})) == {
+                ("column_names", "column 'a' 'label' must be a string, got ['A']"),
+                ("column_names", "column 'a' 'type' must be one of ['percentage', 'decimal'], got 'integer'"),
+                ("column_names", "column 'a' 'decimalPlaces' must be a whole number of at least 0, got -1"),
+                ("column_names", "column 'a' 'replaceValues' must be a boolean, got 'yes'"),
+            }
+
+        @pytest.mark.parametrize("decimal_places", [1.5, True, "2"])
+        def test_decimal_places_must_be_a_whole_number(self, with_settings, decimal_places):
+            value = [{"name": "a", "replaceValues": False, "type": "decimal", "decimalPlaces": decimal_places}]
+            assert _errors(validate_form(with_settings, {"column_names": value})) == {
+                ("column_names",
+                 f"column 'a' 'decimalPlaces' must be a whole number of at least 0, got {decimal_places!r}"),
+            }
+
+        def test_decimal_places_needs_a_type(self, with_settings):
+            value = [{"name": "a", "replaceValues": False, "decimalPlaces": 2}]
+            assert _errors(validate_form(with_settings, {"column_names": value})) == {
+                ("column_names", "column 'a' 'decimalPlaces' is only allowed with a 'type'"),
+            }
+
+        def test_replacement_follows_replace_values(self, with_settings):
+            replace = {"condition": {"field": "a", "operation": "equal", "value": "0"}, "replacementType": "text"}
+            value = [
+                {"name": "a", "replaceValues": True},
+                {"name": "b", "replaceValues": False, "renderedValuesReplace": replace},
+            ]
+            assert _errors(validate_form(with_settings, {"column_names": value})) == {
+                ("column_names", "column 'a' 'renderedValuesReplace' is required when 'replaceValues' is true"),
+                ("column_names", "column 'b' 'renderedValuesReplace' is only allowed when 'replaceValues' is true"),
+            }
+
+        def test_replacement_needs_a_condition_and_type(self, with_settings):
+            value = [{"name": "a", "replaceValues": True, "renderedValuesReplace": {}}]
+            assert _errors(validate_form(with_settings, {"column_names": value})) == {
+                ("column_names", "column 'a' 'renderedValuesReplace.condition' is required"),
+                ("column_names", "column 'a' 'renderedValuesReplace.replacementType' is required"),
+            }
+
+        def test_replacement_carries_only_its_type(self, with_settings):
+            condition = {"field": "a", "operation": "equal", "value": "0"}
+            computed = {"name": "dose", "aggregation": "sum"}
+            value = [
+                {"name": "a", "replaceValues": True, "renderedValuesReplace": {
+                    "condition": condition, "replacementType": "text", "text": "n/a", "computed": computed,
+                }},
+                {"name": "b", "replaceValues": True, "renderedValuesReplace": {
+                    "condition": condition, "replacementType": "computed", "text": "n/a",
+                }},
+            ]
+            assert _errors(validate_form(with_settings, {"column_names": value})) == {
+                ("column_names",
+                 "column 'a' 'renderedValuesReplace.computed' is only allowed when 'replacementType' is 'computed'"),
+                ("column_names",
+                 "column 'b' 'renderedValuesReplace.computed' is required when 'replacementType' is 'computed'"),
+                ("column_names",
+                 "column 'b' 'renderedValuesReplace.text' is only allowed when 'replacementType' is 'text'"),
+            }
+
+        def test_operation_value_needs_an_operation(self, with_settings):
+            value = [{"name": "a", "replaceValues": True, "renderedValuesReplace": {
+                "condition": {"field": "a", "operation": "equal", "value": "0"},
+                "replacementType": "computed",
+                "computed": {"name": "dose", "aggregation": "sum", "operationValue": 2},
+            }}]
+            assert _errors(validate_form(with_settings, {"column_names": value})) == {
+                ("column_names",
+                 "column 'a' 'renderedValuesReplace.computed.operationValue' is only allowed with an 'operation'"),
+            }
+
+        def test_replacement_settings_must_have_the_right_shape(self, with_settings):
+            value = [
+                {"name": "a", "replaceValues": True, "renderedValuesReplace": "text"},
+                {"name": "b", "replaceValues": True, "renderedValuesReplace": {
+                    "condition": {"field": 1, "operation": "like", "value": [1]},
+                    "replacementType": "formula",
+                    "text": 5,
+                    "computed": {"name": 2, "aggregation": "median", "operation": "power", "operationValue": "2"},
+                }},
+            ]
+            assert _errors(validate_form(with_settings, {"column_names": value})) == {
+                ("column_names", "column 'a' 'renderedValuesReplace' must be an object, got 'text'"),
+                ("column_names", "column 'b' 'renderedValuesReplace.condition.field' must be a string, got 1"),
+                ("column_names",
+                 "column 'b' 'renderedValuesReplace.condition.operation' must be one of "
+                 "['equal', 'notEqual', 'lessThan', 'lessThanOrEqual', 'greaterThan', 'greaterThanOrEqual'], got 'like'"),
+                ("column_names",
+                 "column 'b' 'renderedValuesReplace.condition.value' must be a string or number, got [1]"),
+                ("column_names",
+                 "column 'b' 'renderedValuesReplace.replacementType' must be one of ['text', 'computed'], got 'formula'"),
+                ("column_names", "column 'b' 'renderedValuesReplace.text' must be a string, got 5"),
+                ("column_names", "column 'b' 'renderedValuesReplace.computed.name' must be a string, got 2"),
+                ("column_names",
+                 "column 'b' 'renderedValuesReplace.computed.aggregation' must be one of "
+                 "['sum', 'average', 'min', 'max'], got 'median'"),
+                ("column_names",
+                 "column 'b' 'renderedValuesReplace.computed.operation' must be one of "
+                 "['multiply', 'divide', 'add', 'subtract'], got 'power'"),
+                ("column_names",
+                 "column 'b' 'renderedValuesReplace.computed.operationValue' must be a number, got '2'"),
+            }
