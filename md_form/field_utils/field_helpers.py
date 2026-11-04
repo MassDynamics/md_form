@@ -892,6 +892,7 @@ def dataset_table_values_field(
     datasets_ref: str = "input_datasets",
     show_custom_field_settings: Optional[bool] = None,
     initially_select_all: Optional[bool] = None,
+    column_regex: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Pick and order columns of a dataset's table, each with optional display settings.
 
@@ -902,8 +903,10 @@ def dataset_table_values_field(
     replacement settings, so a column is just `{"name", "value"}`; otherwise
     it is `{"name", "replaceValues", ...}` with those settings.
     `initially_select_all=True` picks every column when the field is empty.
+    `column_regex` offers only the columns whose name it matches; the frontend
+    runs it as a JavaScript regular expression, searching anywhere in the name.
     Each is omitted when unset so the frontend applies its own default, which
-    shows the settings and doesn't select all.
+    shows the settings, doesn't select all and offers every column.
     """
     parameters: Dict[str, Any] = {
         "datasetsSearch": {"ref": datasets_ref},
@@ -913,6 +916,8 @@ def dataset_table_values_field(
         parameters["showCustomFieldSettings"] = show_custom_field_settings
     if initially_select_all is not None:
         parameters["initiallySelectAll"] = initially_select_all
+    if column_regex is not None:
+        parameters["columnRegex"] = column_regex
 
     return {"json_schema_extra": {"parameters": parameters}}
 

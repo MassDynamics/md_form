@@ -53,10 +53,11 @@ runtime, without needing the original Pydantic model. It enforces:
   "right": ...}, ...]``, with different two-condition pairs
   whose optional ``left`` and ``right`` are its two conditions,
 * ``DatasetTableValues`` values: ``[{"name": ..., ...}, ...]``, with
-  different, non-empty column names. With ``parameters.showCustomFieldSettings``
-  false a column is ``{"name", "value"}``; otherwise it is ``{"name",
-  "replaceValues"}`` plus its optional display settings (``label``, ``type``,
-  ``decimalPlaces`` and ``renderedValuesReplace``), each of a known shape,
+  different, non-empty column names that match ``parameters.columnRegex`` when
+  set. With ``parameters.showCustomFieldSettings`` false a column is ``{"name",
+  "value"}``; otherwise it is ``{"name", "replaceValues"}`` plus its optional
+  display settings (``label``, ``type``, ``decimalPlaces`` and
+  ``renderedValuesReplace``), each of a known shape,
 * ``OrderableSampleMetadataColumns`` values: a list of column objects with
   different, non-empty ``field`` names and known ``field_type``, ``order``
   and ``type`` values, where a ``"custom"`` order lists its
@@ -77,6 +78,7 @@ the data alone are skipped rather than reported, so the validator stays
 forward-compatible with new field/rule kinds.
 """
 
+import re
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
@@ -1368,7 +1370,8 @@ def _check_dataset_table_values_shape(name: str, spec: Dict[str, Any], value: An
     """Ensure a value is a list of picked table columns.
 
     Each column is ``{"name": ..., ...}``: ``name`` is required, must be a
-    non-empty string and must not repeat. With
+    non-empty string, must not repeat and must match
+    ``parameters.columnRegex`` when set. With
     ``parameters.showCustomFieldSettings`` false the other keys must be in
     ``_DATASET_TABLE_VALUES_PLAIN_COLUMN_KEYS``; otherwise (the frontend's
     default) they must be in ``_DATASET_TABLE_VALUES_SETTINGS_COLUMN_KEYS``
@@ -1379,6 +1382,7 @@ def _check_dataset_table_values_shape(name: str, spec: Dict[str, Any], value: An
     params = spec.get("parameters")
     with_settings = not (isinstance(params, dict) and params.get("showCustomFieldSettings") is False)
     keys = _DATASET_TABLE_VALUES_SETTINGS_COLUMN_KEYS if with_settings else _DATASET_TABLE_VALUES_PLAIN_COLUMN_KEYS
+    column_regex = _compile_column_regex(params.get("columnRegex") if isinstance(params, dict) else None)
     if not isinstance(value, list):
         return [FieldError(name, "must be a list of columns")]
     errors: List[FieldError] = []
@@ -1396,11 +1400,28 @@ def _check_dataset_table_values_shape(name: str, spec: Dict[str, Any], value: An
             continue
         seen.append(column_name)
         messages = _check_object_keys(column, keys, "")
+        if column_regex is not None and column_regex.search(column_name) is None:
+            messages.append(f"does not match {column_regex.pattern!r}")
         if with_settings:
             messages.extend(_check_dataset_table_value_settings(column))
         for message in messages:
             errors.append(FieldError(name, f"column {column_name!r} {message}"))
     return errors
+
+
+def _compile_column_regex(pattern: Any) -> Optional["re.Pattern[str]"]:
+    """Compile a ``columnRegex`` parameter, or return None when there is nothing to check.
+
+    The frontend runs the pattern as a JavaScript regular expression, so one
+    Python can't compile may still be valid; the value isn't checked against it
+    rather than rejecting every value.
+    """
+    if not isinstance(pattern, str) or pattern == "":
+        return None
+    try:
+        return re.compile(pattern)
+    except re.error:
+        return None
 
 
 def _check_dataset_table_value_settings(column: Dict[str, Any]) -> List[str]:

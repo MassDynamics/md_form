@@ -201,7 +201,7 @@ knowledge_bases = select_field(
   - With `datasets`, each pair must be in the dataset's `job_run_params.condition_comparisons.condition_comparison_pairs`
     (in the same order), and the dataset must be PAIRWISE
   - `filterable=True` lets the user pick some pairs (otherwise all are selected); `sortable=True` lets them be reordered
-- `dataset_table_values_field(table_name, datasets_ref="input_datasets", show_custom_field_settings=None, initially_select_all=None)`
+- `dataset_table_values_field(table_name, datasets_ref="input_datasets", show_custom_field_settings=None, initially_select_all=None, column_regex=None)`
   - Picks and orders columns of the `table_name` table (a name, or a `{"ref": "<field>"}` dict) of the datasets in the
     `datasets_ref` field (`fieldType: "DatasetTableValues"`)
   - The value is `[{"name": "column", ...}, ...]`; each column name is a non-empty string, picked once
@@ -217,6 +217,9 @@ knowledge_bases = select_field(
       `"computed"` one, and `operationValue` only with an `operation`
     - Unset settings may be `None`
   - `initially_select_all=True` picks every column when empty
+  - `column_regex` offers only the columns whose name it matches (a JavaScript regular expression, searched anywhere in
+    the name), and `initially_select_all` picks only those. Each picked column must match it; a pattern Python can't
+    compile isn't checked
 - `colour_palette_field()`
   - Picks one of the organisation's colour palettes (`fieldType: "ColourPalette"`); the value is its id, a string,
     or `None` for no palette

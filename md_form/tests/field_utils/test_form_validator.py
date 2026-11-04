@@ -4158,6 +4158,40 @@ class TestDatasetTableValues:
             ("column_names", "column 'a' is selected more than once"),
         }
 
+    class TestColumnRegex:
+        def _definition(self, column_regex, **kwargs):
+            return TestDatasetTableValues()._definition(column_regex=column_regex, **kwargs)
+
+        @pytest.mark.parametrize("names", [["Intensity_A"], ["Intensity_A", "Intensity_B"]])
+        def test_columns_matching_the_regex_are_valid(self, names):
+            definition = self._definition("^Intensity_", show_custom_field_settings=False)
+            value = [{"name": name} for name in names]
+            assert validate_form(definition, {"column_names": value}).is_valid
+
+        def test_regex_matches_anywhere_in_the_name(self):
+            definition = self._definition("Intensity", show_custom_field_settings=False)
+            assert validate_form(definition, {"column_names": [{"name": "Raw_Intensity_A"}]}).is_valid
+
+        def test_each_column_not_matching_is_reported(self):
+            definition = self._definition("^Intensity_", show_custom_field_settings=False)
+            value = [{"name": "Intensity_A"}, {"name": "GeneNames"}, {"name": "Raw_Intensity_A"}]
+            assert _errors(validate_form(definition, {"column_names": value})) == {
+                ("column_names", "column 'GeneNames' does not match '^Intensity_'"),
+                ("column_names", "column 'Raw_Intensity_A' does not match '^Intensity_'"),
+            }
+
+        def test_applies_with_custom_field_settings(self):
+            definition = self._definition("^Intensity_")
+            value = [{"name": "GeneNames", "replaceValues": False}]
+            assert _errors(validate_form(definition, {"column_names": value})) == {
+                ("column_names", "column 'GeneNames' does not match '^Intensity_'"),
+            }
+
+        def test_pattern_python_cannot_compile_is_not_checked(self):
+            # A JavaScript named group, which Python spells (?P<x>...).
+            definition = self._definition("(?<x>Intensity)", show_custom_field_settings=False)
+            assert validate_form(definition, {"column_names": [{"name": "GeneNames"}]}).is_valid
+
     class TestWithoutCustomFieldSettings:
         @pytest.mark.parametrize("value", [
             [{"name": "ProteinGroupId"}],

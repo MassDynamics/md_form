@@ -2013,6 +2013,7 @@ class TestDatasetTableValuesField:
                 datasets_ref="dataset_id",
                 show_custom_field_settings=False,
                 initially_select_all=True,
+                column_regex="^Intensity_",
                 name="Dataset Table Values",
                 description="The columns to show.",
                 group="Data",
@@ -2032,6 +2033,7 @@ class TestDatasetTableValuesField:
                 "tableName": {"ref": "table_name"},
                 "showCustomFieldSettings": False,
                 "initiallySelectAll": True,
+                "columnRegex": "^Intensity_",
             },
             "rules": [{"name": "is_required"}],
             "when": when.as_dict(),
@@ -2042,6 +2044,7 @@ class TestDatasetTableValuesField:
         {"table_name": "t", "datasets_ref": {"ref": "x"}},
         {"table_name": "t", "show_custom_field_settings": "no"},
         {"table_name": "t", "initially_select_all": 1},
+        {"table_name": "t", "column_regex": 1},
     ])
     def test_dataset_table_values_field_rejects_wrong_types(self, kwargs):
         with pytest.raises(TypeCheckError):
