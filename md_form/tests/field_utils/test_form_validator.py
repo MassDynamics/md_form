@@ -20,6 +20,7 @@ from field_utils import (
     condition_comparisons_field,
     condition_comparison_field,
     control_variables_field,
+    databases_field,
     dataset_param_multiple_field,
     dataset_table_value_field,
     dataset_table_values_field,
@@ -3973,6 +3974,264 @@ class TestOrderableSampleMetadataColumns:
     def test_entity_label_of_an_unknown_entity_is_not_checked(self, definition):
         value = [{"field": "precursor", "field_type": "entity", "entity_label": "anything"}]
         assert validate_form(definition, {"x_axis_list": value}).is_valid
+
+
+class TestDatabases:
+    """A Databases value is {"knowledgeBases": [...], "analysisSets": [...]}."""
+
+    _KNOWLEDGE_BASES = ["Reactome", "GO - Biological Process", "MSigDB-C8 (cell type signature gene sets)"]
+    _ENTITY_LIST = {
+        "id": "672435d5-ed4c-4aa0-abee-e390e6fe728a",
+        "name": "Foozie",
+        "entityIds": ["EIEELKELLPEIRUnmodified_", "KSPLSSILFSALDSDTRPhospho (STY)_", "A0A140LI67", "A1A5B6"],
+    }
+
+    @staticmethod
+    def _definition(**kwargs):
+        class _Form(MdDatasetBaseModel):
+            databases: Optional[dict] = databases_field(**kwargs)
+
+        return translate_payload(_Form.model_json_schema())
+
+    @pytest.fixture()
+    def definition(self):
+        return self._definition(knowledge_bases=self._KNOWLEDGE_BASES, allow_custom_databases=True)
+
+    @staticmethod
+    def _validate(definition, value):
+        return validate_form(definition, {"databases": value})
+
+    def _analysis_sets_errors(self, definition, analysis_sets):
+        return _errors(self._validate(definition, {"knowledgeBases": ["Reactome"], "analysisSets": analysis_sets}))
+
+    def test_valid(self, definition):
+        value = {
+            "knowledgeBases": self._KNOWLEDGE_BASES,
+            "analysisSets": [{"name": "teest", "entityLists": [self._ENTITY_LIST]}],
+        }
+        assert self._validate(definition, value).is_valid
+
+    def test_analysis_sets_can_be_empty(self, definition):
+        assert self._validate(definition, {"knowledgeBases": ["Reactome"], "analysisSets": []}).is_valid
+
+    @pytest.mark.parametrize(
+        "value", [{"knowledgeBases": ["Reactome"]}, {"knowledgeBases": ["Reactome"], "analysisSets": None}]
+    )
+    def test_analysis_sets_can_be_unset(self, definition, value):
+        assert self._validate(definition, value).is_valid
+
+    @pytest.mark.parametrize("value", [None, {}, [], {"knowledgeBases": [], "analysisSets": []}])
+    def test_it_is_required(self, value):
+        definition = self._definition(rules=[is_required()])
+        assert _errors(self._validate(definition, value)) == {("databases", "is required")}
+
+    @pytest.mark.parametrize("value", [None, {}, [], {"knowledgeBases": [], "analysisSets": []}])
+    def test_an_optional_field_can_be_empty(self, definition, value):
+        assert self._validate(definition, value).is_valid
+
+    @pytest.mark.parametrize("value", ["Reactome", ["Reactome"], 5, True])
+    def test_it_must_be_an_object(self, definition, value):
+        assert _errors(self._validate(definition, value)) == {
+            ("databases", "must be an object with 'knowledgeBases' and 'analysisSets'"),
+        }
+
+    @pytest.mark.parametrize("knowledge_bases", ["Reactome", {"name": "Reactome"}, 5])
+    def test_knowledge_bases_must_be_a_list(self, definition, knowledge_bases):
+        assert _errors(self._validate(definition, {"knowledgeBases": knowledge_bases})) == {
+            ("databases", "'knowledgeBases' must be a list of knowledge bases"),
+        }
+
+    def test_each_knowledge_base_must_be_a_non_empty_string(self, definition):
+        value = {"knowledgeBases": ["Reactome", "", 5, {"name": "GO - Biological Process"}]}
+        assert _errors(self._validate(definition, value)) == {
+            ("databases", "knowledge base 2 must be a non-empty string, got ''"),
+            ("databases", "knowledge base 3 must be a non-empty string, got 5"),
+            ("databases", "knowledge base 4 must be a non-empty string, got {'name': 'GO - Biological Process'}"),
+        }
+
+    def test_each_knowledge_base_is_selected_once(self, definition):
+        value = {"knowledgeBases": ["Reactome", "GO - Biological Process", "Reactome"]}
+        assert _errors(self._validate(definition, value)) == {
+            ("databases", "knowledge base 'Reactome' is selected more than once"),
+        }
+
+    def test_each_knowledge_base_must_be_offered(self):
+        definition = self._definition(knowledge_bases=["Reactome", "KEGG"])
+        assert _errors(self._validate(definition, {"knowledgeBases": ["Reactome", "NotARealDB"]})) == {
+            ("databases", "'NotARealDB' is not one of the allowed options ['Reactome', 'KEGG']"),
+        }
+
+    def test_knowledge_bases_are_not_checked_when_none_are_set(self):
+        assert self._validate(self._definition(), {"knowledgeBases": ["Anything"]}).is_valid
+
+    def test_dynamic_knowledge_bases_follow_their_ref(self):
+        class _Form(MdDatasetBaseModel):
+            species: str = select_field(options=["Human", "Mouse", "Yeast"])
+            databases: Optional[dict] = databases_field(
+                knowledge_bases={"ref": "species", "cases": {"Human": ["Reactome", "GO"], "Mouse": ["Reactome"]}}
+            )
+
+        definition = translate_payload(_Form.model_json_schema())
+        value = {"knowledgeBases": ["GO"]}
+        assert validate_form(definition, {"species": "Human", "databases": value}).is_valid
+        assert _errors(validate_form(definition, {"species": "Mouse", "databases": value})) == {
+            ("databases", "'GO' is not one of the allowed options ['Reactome']"),
+        }
+        assert validate_form(definition, {"species": "Yeast", "databases": value}).is_valid
+
+    @pytest.mark.parametrize("kwargs", [{}, {"allow_custom_databases": False}])
+    def test_analysis_sets_need_custom_databases(self, kwargs):
+        value = {"knowledgeBases": ["Reactome"], "analysisSets": [{"name": "teest", "entityLists": []}]}
+        assert _errors(self._validate(self._definition(**kwargs), value)) == {
+            ("databases", "'analysisSets' must be empty as custom databases are not allowed"),
+        }
+
+    @pytest.mark.parametrize("kwargs", [{}, {"allow_custom_databases": False}])
+    def test_empty_analysis_sets_do_not_need_custom_databases(self, kwargs):
+        value = {"knowledgeBases": ["Reactome"], "analysisSets": []}
+        assert self._validate(self._definition(**kwargs), value).is_valid
+
+    @pytest.mark.parametrize("analysis_sets", ["teest", {"name": "teest"}, 5])
+    def test_analysis_sets_must_be_a_list(self, definition, analysis_sets):
+        assert self._analysis_sets_errors(definition, analysis_sets) == {
+            ("databases", "'analysisSets' must be a list of analysis sets"),
+        }
+
+    def test_each_analysis_set_must_be_an_object(self, definition):
+        assert self._analysis_sets_errors(definition, ["teest", 5]) == {
+            ("databases", "analysis set 1 must be an object with a 'name', got 'teest'"),
+            ("databases", "analysis set 2 must be an object with a 'name', got 5"),
+        }
+
+    def test_each_analysis_set_needs_a_name(self, definition):
+        analysis_sets = [{"entityLists": []}, {"name": "", "entityLists": []}, {"name": 5, "entityLists": []}]
+        assert self._analysis_sets_errors(definition, analysis_sets) == {
+            ("databases", "analysis set 1 'name' must be a non-empty string, got None"),
+            ("databases", "analysis set 2 'name' must be a non-empty string, got ''"),
+            ("databases", "analysis set 3 'name' must be a non-empty string, got 5"),
+        }
+
+    def test_each_analysis_set_name_is_used_once(self, definition):
+        analysis_sets = [
+            {"name": "teest", "entityLists": [self._ENTITY_LIST]},
+            {"name": "teest", "entityLists": [self._ENTITY_LIST]},
+        ]
+        assert self._analysis_sets_errors(definition, analysis_sets) == {
+            ("databases", "analysis set 'teest' is used more than once"),
+        }
+
+    def test_an_analysis_set_cannot_be_named_after_a_selected_knowledge_base(self, definition):
+        analysis_sets = [{"name": "Reactome", "entityLists": [self._ENTITY_LIST]}]
+        assert self._analysis_sets_errors(definition, analysis_sets) == {
+            ("databases", "analysis set 'Reactome' has the same name as a selected knowledge base"),
+        }
+
+    def test_an_analysis_set_can_be_named_after_an_unselected_knowledge_base(self, definition):
+        analysis_sets = [{"name": "GO - Biological Process", "entityLists": [self._ENTITY_LIST]}]
+        assert self._analysis_sets_errors(definition, analysis_sets) == set()
+
+    def test_analysis_sets_can_be_used_without_knowledge_bases(self, definition):
+        value = {"knowledgeBases": [], "analysisSets": [{"name": "teest", "entityLists": [self._ENTITY_LIST]}]}
+        assert self._validate(definition, value).is_valid
+
+    @pytest.mark.parametrize("entity_lists", [None, [], "Foozie", {"id": "list-1"}, 5])
+    def test_entity_lists_must_be_a_non_empty_list(self, definition, entity_lists):
+        analysis_sets = [{"name": "teest", "entityLists": entity_lists}]
+        assert self._analysis_sets_errors(definition, analysis_sets) == {
+            (
+                "databases",
+                f"analysis set 'teest' 'entityLists' must be a non-empty list of entity lists, got {entity_lists!r}",
+            ),
+        }
+
+    def test_each_entity_list_name_is_used_once_in_an_analysis_set(self, definition):
+        analysis_sets = [{"name": "teest", "entityLists": [self._ENTITY_LIST, {**self._ENTITY_LIST, "id": "list-2"}]}]
+        assert self._analysis_sets_errors(definition, analysis_sets) == {
+            ("databases", "analysis set 'teest' entity list name 'Foozie' is used more than once"),
+        }
+
+    def test_entity_list_names_can_repeat_across_analysis_sets(self, definition):
+        analysis_sets = [
+            {"name": "teest", "entityLists": [self._ENTITY_LIST]},
+            {"name": "other", "entityLists": [self._ENTITY_LIST]},
+        ]
+        assert self._analysis_sets_errors(definition, analysis_sets) == set()
+
+    def test_each_entity_list_must_be_an_object(self, definition):
+        analysis_sets = [{"name": "teest", "entityLists": ["list-1", 5]}]
+        assert self._analysis_sets_errors(definition, analysis_sets) == {
+            ("databases", "analysis set 'teest' entity list 1 must be an object with an 'id', got 'list-1'"),
+            ("databases", "analysis set 'teest' entity list 2 must be an object with an 'id', got 5"),
+        }
+
+    def test_each_entity_list_needs_an_id(self, definition):
+        analysis_sets = [{"name": "teest", "entityLists": [{"name": "Foozie"}, {"id": ""}, {"id": 5}]}]
+        assert self._analysis_sets_errors(definition, analysis_sets) == {
+            ("databases", "analysis set 'teest' entity list 1 'id' must be a non-empty string, got None"),
+            ("databases", "analysis set 'teest' entity list 2 'id' must be a non-empty string, got ''"),
+            ("databases", "analysis set 'teest' entity list 3 'id' must be a non-empty string, got 5"),
+        }
+
+    def test_an_entity_list_needs_its_name_and_entity_ids(self, definition):
+        analysis_sets = [{"name": "teest", "entityLists": [{"id": "list-1"}]}]
+        assert self._analysis_sets_errors(definition, analysis_sets) == {
+            ("databases", "analysis set 'teest' entity list 'list-1' 'name' must be a non-empty string, got None"),
+            ("databases", "analysis set 'teest' entity list 'list-1' 'entityIds' must be a non-empty list of entity ids"),
+        }
+
+    @pytest.mark.parametrize("entity_list_name", [None, "", 5])
+    def test_entity_list_name_must_be_a_non_empty_string(self, definition, entity_list_name):
+        entity_list = {"id": "list-1", "name": entity_list_name, "entityIds": ["A1A5B6"]}
+        analysis_sets = [{"name": "teest", "entityLists": [entity_list]}]
+        assert self._analysis_sets_errors(definition, analysis_sets) == {
+            (
+                "databases",
+                f"analysis set 'teest' entity list 'list-1' 'name' must be a non-empty string, got {entity_list_name!r}",
+            ),
+        }
+
+    @pytest.mark.parametrize("entity_ids", [None, [], "A1A5B6", {"id": "A1A5B6"}, 5])
+    def test_entity_ids_must_be_a_non_empty_list(self, definition, entity_ids):
+        entity_list = {"id": "list-1", "name": "Foozie", "entityIds": entity_ids}
+        analysis_sets = [{"name": "teest", "entityLists": [entity_list]}]
+        assert self._analysis_sets_errors(definition, analysis_sets) == {
+            ("databases", "analysis set 'teest' entity list 'list-1' 'entityIds' must be a non-empty list of entity ids"),
+        }
+
+    def test_every_entity_list_in_every_analysis_set_is_checked(self, definition):
+        analysis_sets = [
+            {"name": "good", "entityLists": [self._ENTITY_LIST]},
+            {"name": "bad one", "entityLists": [self._ENTITY_LIST, {"id": "list-2", "name": "Bar"}]},
+            {"name": "bad two", "entityLists": [{"id": "list-3", "entityIds": ["A1A5B6"]}]},
+        ]
+        assert self._analysis_sets_errors(definition, analysis_sets) == {
+            ("databases", "analysis set 'bad one' entity list 'list-2' 'entityIds' must be a non-empty list of entity ids"),
+            ("databases", "analysis set 'bad two' entity list 'list-3' 'name' must be a non-empty string, got None"),
+        }
+
+    def test_each_entity_id_must_be_a_non_empty_string(self, definition):
+        entity_list = {"id": "list-1", "name": "Foozie", "entityIds": ["A1A5B6", "", 5, "   "]}
+        analysis_sets = [{"name": "teest", "entityLists": [entity_list]}]
+        assert self._analysis_sets_errors(definition, analysis_sets) == {
+            ("databases", "analysis set 'teest' entity list 'list-1' entity id 2 must be a non-empty string, got ''"),
+            ("databases", "analysis set 'teest' entity list 'list-1' entity id 3 must be a non-empty string, got 5"),
+            ("databases", "analysis set 'teest' entity list 'list-1' entity id 4 must be a non-empty string, got '   '"),
+        }
+
+    def test_knowledge_base_and_analysis_set_errors_are_all_reported(self, definition):
+        value = {"knowledgeBases": ["NotARealDB"], "analysisSets": [{"entityLists": []}]}
+        assert _errors(self._validate(definition, value)) == {
+            ("databases", f"'NotARealDB' is not one of the allowed options {self._KNOWLEDGE_BASES}"),
+            ("databases", "analysis set 1 'name' must be a non-empty string, got None"),
+        }
+
+    def test_other_keys_are_left_alone(self, definition):
+        value = {
+            "knowledgeBases": ["Reactome"],
+            "analysisSets": [{"name": "teest", "entityLists": [{**self._ENTITY_LIST, "extra": 1}], "extra": 1}],
+            "extra": 1,
+        }
+        assert self._validate(definition, value).is_valid
 
 
 class TestBlob:

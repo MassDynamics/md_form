@@ -49,6 +49,12 @@ runtime, without needing the original Pydantic model. It enforces:
   ``{"column": ..., "value": [...]}`` objects,
 * ``DatasetParamMultiple`` values: a list of different, non-empty database
   names,
+* ``Databases`` values: ``{"knowledgeBases": [...], "analysisSets": [...]}``,
+  with different, non-empty knowledge bases from ``parameters.knowledgeBases``
+  when set, and analysis sets (only with ``parameters.allowCustomDatabases``)
+  of ``{"name": ..., "entityLists": [{"id": ..., "name": ..., "entityIds":
+  [...]}, ...]}`` with different, non-empty names, none a selected knowledge
+  base, at least one entity list each and at least one entity id per list,
 * ``PairwiseConditionPairs`` values: ``[{"condition_pair": [...], "left": ...,
   "right": ...}, ...]``, with different two-condition pairs
   whose optional ``left`` and ``right`` are its two conditions,
@@ -230,6 +236,9 @@ _SAMPLE_METADATA_VALUES_FILTER_FIELD_TYPE = FieldType.SAMPLE_METADATA_VALUES_FIL
 # fieldType of a list of database names taken from a dataset's job run params
 # (see field_helpers.dataset_param_multiple_field).
 _DATASET_PARAM_MULTIPLE_FIELD_TYPE = FieldType.DATASET_PARAM_MULTIPLE.value  # "DatasetParamMultiple"
+
+# fieldType of a knowledge-bases-and-analysis-sets object (see field_helpers.databases_field).
+_DATABASES_FIELD_TYPE = FieldType.DATABASES.value  # "Databases"
 
 # fieldType of a plot-size object (see field_helpers.plot_size_field).
 _PLOT_SIZE_FIELD_TYPE = FieldType.PLOT_SIZE.value  # "PlotSize"
@@ -715,6 +724,13 @@ def _validate_field(name: str, spec: Dict[str, Any], data: Dict[str, Any]) -> Li
     # database names. Each malformed name is reported.
     if spec.get("fieldType") == _DATASET_PARAM_MULTIPLE_FIELD_TYPE:
         shape_errors = _check_dataset_param_multiple_shape(name, value)
+        if shape_errors:
+            return shape_errors
+
+    # A databases value is {"knowledgeBases": [...], "analysisSets": [...]}.
+    # Each malformed knowledge base and analysis set is reported.
+    if spec.get("fieldType") == _DATABASES_FIELD_TYPE:
+        shape_errors = _check_databases_shape(name, spec, value, data)
         if shape_errors:
             return shape_errors
 
@@ -1520,6 +1536,126 @@ def _check_dataset_param_multiple_shape(name: str, value: Any) -> List[FieldErro
         else:
             seen.append(database)
     return errors
+
+
+def _check_databases_shape(
+    name: str, spec: Dict[str, Any], value: Any, data: Dict[str, Any]
+) -> List[FieldError]:
+    """Ensure a value is ``{"knowledgeBases": [...], "analysisSets": [...]}``.
+
+    Either key may be missing or None. Other keys are left alone.
+    """
+    if not isinstance(value, dict):
+        return [FieldError(name, "must be an object with 'knowledgeBases' and 'analysisSets'")]
+    params = spec.get("parameters")
+    if not isinstance(params, dict):
+        params = {}
+    knowledge_bases = value.get("knowledgeBases")
+    messages = _check_knowledge_bases(knowledge_bases, params.get("knowledgeBases"), data)
+    messages.extend(_check_analysis_sets(value.get("analysisSets"), params.get("allowCustomDatabases"), knowledge_bases))
+    return [FieldError(name, message) for message in messages]
+
+
+def _check_knowledge_bases(knowledge_bases: Any, options: Any, data: Dict[str, Any]) -> List[str]:
+    """Ensure knowledge bases are different, non-empty strings from ``options``.
+
+    ``options`` is a list or a ``{ref, cases}`` dict; membership isn't checked
+    when it is unset or has no case for the current value of its ref.
+    Knowledge bases are numbered from 1 in the messages, as a user would count
+    them.
+    """
+    if knowledge_bases is None:
+        return []
+    if not isinstance(knowledge_bases, list):
+        return ["'knowledgeBases' must be a list of knowledge bases"]
+    allowed = _allowed_option_values(options, data)
+    messages: List[str] = []
+    seen: List[str] = []
+    for number, knowledge_base in enumerate(knowledge_bases, start=1):
+        if not isinstance(knowledge_base, str) or knowledge_base == "":
+            messages.append(f"knowledge base {number} must be a non-empty string, got {knowledge_base!r}")
+        elif knowledge_base in seen:
+            messages.append(f"knowledge base {knowledge_base!r} is selected more than once")
+        elif allowed is not None and knowledge_base not in allowed:
+            messages.append(f"{knowledge_base!r} is not one of the allowed options {allowed}")
+        else:
+            seen.append(knowledge_base)
+    return messages
+
+
+def _check_analysis_sets(analysis_sets: Any, allow_custom_databases: Any, knowledge_bases: Any) -> List[str]:
+    """Ensure analysis sets are named sets of entity lists, and allowed at all.
+
+    Analysis sets may be empty; any others need ``allowCustomDatabases``. Each
+    is ``{"name": ..., "entityLists": [...]}`` with a different, non-empty
+    ``name`` that isn't one of the selected ``knowledge_bases``: enrichment
+    looks a database up by name, so the set would replace the knowledge base.
+    Sets are numbered from 1 in the messages, as a user would count them.
+    """
+    if analysis_sets is None:
+        return []
+    if not isinstance(analysis_sets, list):
+        return ["'analysisSets' must be a list of analysis sets"]
+    if analysis_sets and allow_custom_databases is not True:
+        return ["'analysisSets' must be empty as custom databases are not allowed"]
+    messages: List[str] = []
+    seen: List[str] = []
+    for number, analysis_set in enumerate(analysis_sets, start=1):
+        if not isinstance(analysis_set, dict):
+            messages.append(f"analysis set {number} must be an object with a 'name', got {analysis_set!r}")
+            continue
+        set_name = analysis_set.get("name")
+        if not isinstance(set_name, str) or set_name == "":
+            messages.append(f"analysis set {number} 'name' must be a non-empty string, got {set_name!r}")
+            continue
+        if set_name in seen:
+            messages.append(f"analysis set {set_name!r} is used more than once")
+            continue
+        seen.append(set_name)
+        if isinstance(knowledge_bases, list) and set_name in knowledge_bases:
+            messages.append(f"analysis set {set_name!r} has the same name as a selected knowledge base")
+        messages.extend(f"analysis set {set_name!r} {m}" for m in _check_entity_lists(analysis_set.get("entityLists")))
+    return messages
+
+
+def _check_entity_lists(entity_lists: Any) -> List[str]:
+    """Ensure an analysis set's entity lists are ``{"id": ..., "name": ..., "entityIds": [...]}`` objects.
+
+    There must be at least one, and each needs all three keys: a non-empty
+    string ``id``, a non-empty ``name`` that is different within the analysis
+    set (enrichment merges lists of the same name), and a non-empty list of
+    ``entityIds``, none of them blank. Entity lists and their ids are numbered
+    from 1 in the messages, as a user would count them.
+    """
+    if not isinstance(entity_lists, list) or not entity_lists:
+        return [f"'entityLists' must be a non-empty list of entity lists, got {entity_lists!r}"]
+    messages: List[str] = []
+    seen_names: List[str] = []
+    for number, entity_list in enumerate(entity_lists, start=1):
+        if not isinstance(entity_list, dict):
+            messages.append(f"entity list {number} must be an object with an 'id', got {entity_list!r}")
+            continue
+        list_id = entity_list.get("id")
+        if not isinstance(list_id, str) or list_id == "":
+            messages.append(f"entity list {number} 'id' must be a non-empty string, got {list_id!r}")
+            continue
+        list_name = entity_list.get("name")
+        if not isinstance(list_name, str) or list_name == "":
+            messages.append(f"entity list {list_id!r} 'name' must be a non-empty string, got {list_name!r}")
+        elif list_name in seen_names:
+            messages.append(f"entity list name {list_name!r} is used more than once")
+        else:
+            seen_names.append(list_name)
+        entity_ids = entity_list.get("entityIds")
+        if not isinstance(entity_ids, list) or not entity_ids:
+            messages.append(f"entity list {list_id!r} 'entityIds' must be a non-empty list of entity ids")
+            continue
+        for id_number, entity_id in enumerate(entity_ids, start=1):
+            if not isinstance(entity_id, str) or entity_id.strip() == "":
+                messages.append(
+                    f"entity list {list_id!r} entity id {id_number} must be a non-empty string, got {entity_id!r}"
+                )
+    return messages
 
 
 def _check_plot_size_shape(name: str, value: Any) -> List[FieldError]:

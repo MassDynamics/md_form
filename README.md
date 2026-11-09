@@ -223,6 +223,14 @@ knowledge_bases = select_field(
 - `colour_palette_field()`
   - Picks one of the organisation's colour palettes (`fieldType: "ColourPalette"`); the value is its id, a string,
     or `None` for no palette
+- `databases_field()`
+  - The value is `{"knowledgeBases": [...], "analysisSets": [{"name": ..., "entityLists": [{"id": ..., "name": ...,
+    "entityIds": [...]}, ...]}, ...]}`
+  - Knowledge bases must be different, non-empty strings, and among `knowledge_bases` when it is set
+  - `analysisSets` can be empty, but holding any needs `allow_custom_databases=True`. Their names must be different,
+    non-empty and not a selected knowledge base, and each needs at least one entity list
+  - Each entity list needs a non-empty `id`, a non-empty `name` that is different within its analysis set, and at least
+    one entity id in `entityIds`, none of them blank
 - `EntityType` is `Literal["protein", "peptide", "gene", "metabolite", "ptm", "precursor"]`. It is also taken by
   `intensity_input_dataset_field`, `datasets_field` (`entity_types`), and by `entity_list_entity_ids_field`,
   `entity_list_field`, `entity_lists_field` (`type`), `entity_title_field`, `orderable_sample_metadata_columns_field` (`entity_type`) and `databases_field` (`entity_type`), which also accept a `{"ref": "<field>"}` dict.
