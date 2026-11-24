@@ -362,11 +362,15 @@ def _check_datasets(
     For every field whose ``fieldType`` is ``"Datasets"``:
     * if ``datasets`` is ``None`` the field cannot be validated -> error;
     * otherwise each selected dataset id in ``data`` must appear in ``datasets``,
-      match the field's required ``parameters.type`` (when set), be in the
-      ``COMPLETED`` state, and list the entity type chosen in any active
-      ``EntityType`` field whose ``parameters.datasetsSearch.ref`` names this
-      field among its ``entity_types`` (datasets without ``entity_types`` are
-      not checked).
+      match the field's required ``parameters.type`` (when set; a list of
+      types allows any of them), be in the
+      ``COMPLETED`` state, list at least one of the field's
+      ``parameters.entityTypes`` (when set), and list the entity type chosen
+      in any active ``EntityType`` field whose ``parameters.datasetsSearch.ref``
+      names this field among its ``entity_types`` (datasets without
+      ``entity_types`` are not checked);
+    * a field with ``parameters.multiple`` set to ``False`` and no ``max``
+      bound may hold at most one dataset.
     """
     errors: List[FieldError] = []
     dataset_fields = [(n, s) for n, s in fields.items() if s.get("fieldType") == _DATASETS_FIELD_TYPE]
@@ -387,12 +391,27 @@ def _check_datasets(
         params = spec.get("parameters") or {}
         required_type = params.get("type")
         entity_types = _selected_entity_types(fields, data, name)
+        allowed_entity_types = params.get("entityTypes")
+        # A max bound already limits how many can be picked (see _check_bounds).
+        if (
+            params.get("multiple") is False
+            and params.get("max") is None
+            and isinstance(value, list)
+            and len(value) > 1
+        ):
+            errors.append(FieldError(name, "only one dataset can be selected"))
         for ds_id in _selected_dataset_ids(value):
             dataset = by_id.get(ds_id)
             if dataset is None:
                 errors.append(FieldError(name, f"dataset {ds_id!r} is not in the provided datasets"))
                 continue
-            if required_type is not None and dataset.get("type") != required_type:
+            if isinstance(required_type, list):
+                if dataset.get("type") not in required_type:
+                    errors.append(FieldError(
+                        name,
+                        f"dataset {ds_id!r} must be one of the types {required_type!r}, not {dataset.get('type')!r}",
+                    ))
+            elif required_type is not None and dataset.get("type") != required_type:
                 errors.append(FieldError(
                     name,
                     f"dataset {ds_id!r} must be of type {required_type!r}, not {dataset.get('type')!r}",
@@ -404,6 +423,13 @@ def _check_datasets(
                 ))
             available = dataset.get("entity_types")
             if isinstance(available, list):
+                if isinstance(allowed_entity_types, list) and not any(
+                    t in available for t in allowed_entity_types
+                ):
+                    errors.append(FieldError(
+                        name,
+                        f"dataset {dataset.get('name', ds_id)!r} has none of the entity types {allowed_entity_types!r}",
+                    ))
                 for entity_type in entity_types:
                     if entity_type not in available:
                         errors.append(FieldError(

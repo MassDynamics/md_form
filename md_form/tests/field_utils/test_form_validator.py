@@ -2981,6 +2981,338 @@ class TestDatasets:
             }
 
 
+class TestDatasetsField:
+    """A datasets_field selection must be in the provided datasets, completed,
+    and of the field's type when one is set."""
+
+    class _Form(MdDatasetBaseModel):
+        any_dataset: Optional[str] = datasets_field()
+        pairwise_dataset: Optional[str] = datasets_field(type="PAIRWISE", multiple=False)
+        anova_datasets: Optional[list] = datasets_field(type="ANOVA", multiple=True)
+
+    @pytest.fixture()
+    def definition(self):
+        return translate_payload(self._Form.model_json_schema())
+
+    @staticmethod
+    def _dataset(ds_id, ds_type, state="COMPLETED", **extra):
+        return {"id": ds_id, "name": ds_id.upper(), "type": ds_type, "state": state, **extra}
+
+    @pytest.fixture()
+    def datasets(self):
+        return [
+            self._dataset("int1", "INTENSITY"),
+            self._dataset("pw1", "PAIRWISE"),
+            self._dataset("an1", "ANOVA"),
+            self._dataset("an2", "ANOVA"),
+        ]
+
+    def test_definition_carries_the_parameters(self, definition):
+        assert definition["any_dataset"]["fieldType"] == "Datasets"
+        assert "parameters" not in definition["any_dataset"]
+        assert definition["pairwise_dataset"]["parameters"] == {"type": "PAIRWISE", "multiple": False}
+        assert definition["anova_datasets"]["parameters"] == {"type": "ANOVA", "multiple": True}
+
+    def test_nothing_selected_is_valid(self, definition, datasets):
+        assert validate_form(definition, {}, datasets=datasets).is_valid
+
+    def test_null_selection_is_valid(self, definition, datasets):
+        data = {"any_dataset": None, "pairwise_dataset": None, "anova_datasets": None}
+        assert validate_form(definition, data, datasets=datasets).is_valid
+
+    def test_valid_selections(self, definition, datasets):
+        data = {"any_dataset": "int1", "pairwise_dataset": "pw1", "anova_datasets": ["an1", "an2"]}
+        assert validate_form(definition, data, datasets=datasets).is_valid
+
+    def test_dict_selections_are_valid(self, definition, datasets):
+        data = {
+            "pairwise_dataset": {"id": "pw1", "name": "PW1"},
+            "anova_datasets": [{"id": "an1", "name": "AN1"}, {"id": "an2", "name": "AN2"}],
+        }
+        assert validate_form(definition, data, datasets=datasets).is_valid
+
+    @pytest.mark.parametrize("ds_id", ["int1", "pw1", "an1"])
+    def test_any_type_is_allowed_without_a_type(self, definition, datasets, ds_id):
+        assert validate_form(definition, {"any_dataset": ds_id}, datasets=datasets).is_valid
+
+    def test_wrong_type_is_invalid(self, definition, datasets):
+        result = validate_form(definition, {"pairwise_dataset": "int1"}, datasets=datasets)
+        assert _errors(result) == {
+            ("pairwise_dataset", "dataset 'int1' must be of type 'PAIRWISE', not 'INTENSITY'"),
+        }
+
+    def test_each_selected_dataset_is_type_checked(self, definition, datasets):
+        result = validate_form(definition, {"anova_datasets": ["an1", "pw1", "int1"]}, datasets=datasets)
+        assert _errors(result) == {
+            ("anova_datasets", "dataset 'pw1' must be of type 'ANOVA', not 'PAIRWISE'"),
+            ("anova_datasets", "dataset 'int1' must be of type 'ANOVA', not 'INTENSITY'"),
+        }
+
+    def test_type_comparison_is_case_sensitive(self, definition):
+        datasets = [self._dataset("pw1", "pairwise")]
+        result = validate_form(definition, {"pairwise_dataset": "pw1"}, datasets=datasets)
+        assert _errors(result) == {
+            ("pairwise_dataset", "dataset 'pw1' must be of type 'PAIRWISE', not 'pairwise'"),
+        }
+
+    @pytest.mark.parametrize("state", ["RUNNING", "FAILED", None])
+    def test_dataset_must_be_completed(self, definition, state):
+        datasets = [self._dataset("int1", "INTENSITY", state=state)]
+        result = validate_form(definition, {"any_dataset": "int1"}, datasets=datasets)
+        assert _errors(result) == {
+            ("any_dataset", f"dataset 'int1' must be in state 'COMPLETED', not {state!r}"),
+        }
+
+    def test_wrong_type_and_state_are_both_reported(self, definition):
+        datasets = [self._dataset("int1", "INTENSITY", state="RUNNING")]
+        result = validate_form(definition, {"pairwise_dataset": "int1"}, datasets=datasets)
+        assert _errors(result) == {
+            ("pairwise_dataset", "dataset 'int1' must be of type 'PAIRWISE', not 'INTENSITY'"),
+            ("pairwise_dataset", "dataset 'int1' must be in state 'COMPLETED', not 'RUNNING'"),
+        }
+
+    def test_missing_dataset_is_invalid(self, definition, datasets):
+        result = validate_form(definition, {"anova_datasets": ["an1", "missing"]}, datasets=datasets)
+        assert _errors(result) == {
+            ("anova_datasets", "dataset 'missing' is not in the provided datasets"),
+        }
+
+    def test_datasets_list_must_be_provided_for_every_datasets_field(self, definition):
+        result = validate_form(definition, {"any_dataset": "int1"})
+        assert _errors(result) == {
+            ("any_dataset", "a datasets list must be provided to validate this field"),
+            ("pairwise_dataset", "a datasets list must be provided to validate this field"),
+            ("anova_datasets", "a datasets list must be provided to validate this field"),
+        }
+
+    class TestTypeList:
+        """With a list of types, a selected dataset must be one of them."""
+
+        class _Form(MdDatasetBaseModel):
+            single: Optional[str] = datasets_field(type=["PAIRWISE", "ANOVA"], multiple=False)
+            several: Optional[list] = datasets_field(type=["PAIRWISE", "ANOVA"], multiple=True)
+            only_intensity: Optional[str] = datasets_field(type=["INTENSITY"])
+
+        @pytest.fixture()
+        def definition(self):
+            return translate_payload(self._Form.model_json_schema())
+
+        @pytest.fixture()
+        def datasets(self):
+            return [
+                TestDatasetsField._dataset("int1", "INTENSITY"),
+                TestDatasetsField._dataset("pw1", "PAIRWISE"),
+                TestDatasetsField._dataset("an1", "ANOVA"),
+                TestDatasetsField._dataset("en1", "ENRICHMENT"),
+            ]
+
+        def test_definition_carries_the_type_list(self, definition):
+            assert definition["single"]["parameters"] == {"type": ["PAIRWISE", "ANOVA"], "multiple": False}
+            assert definition["only_intensity"]["parameters"] == {"type": ["INTENSITY"]}
+
+        @pytest.mark.parametrize("ds_id", ["pw1", "an1"])
+        def test_each_listed_type_is_valid(self, definition, datasets, ds_id):
+            assert validate_form(definition, {"single": ds_id}, datasets=datasets).is_valid
+
+        def test_dict_selection_of_a_listed_type_is_valid(self, definition, datasets):
+            data = {"single": {"id": "an1", "name": "AN1"}}
+            assert validate_form(definition, data, datasets=datasets).is_valid
+
+        def test_several_datasets_of_different_listed_types_are_valid(self, definition, datasets):
+            assert validate_form(definition, {"several": ["pw1", "an1"]}, datasets=datasets).is_valid
+
+        @pytest.mark.parametrize("ds_id, ds_type", [("int1", "INTENSITY"), ("en1", "ENRICHMENT")])
+        def test_unlisted_type_is_invalid(self, definition, datasets, ds_id, ds_type):
+            result = validate_form(definition, {"single": ds_id}, datasets=datasets)
+            assert _errors(result) == {
+                ("single", f"dataset {ds_id!r} must be one of the types ['PAIRWISE', 'ANOVA'], not {ds_type!r}"),
+            }
+
+        def test_each_selected_dataset_is_type_checked(self, definition, datasets):
+            result = validate_form(definition, {"several": ["pw1", "int1", "an1", "en1"]}, datasets=datasets)
+            assert _errors(result) == {
+                ("several", "dataset 'int1' must be one of the types ['PAIRWISE', 'ANOVA'], not 'INTENSITY'"),
+                ("several", "dataset 'en1' must be one of the types ['PAIRWISE', 'ANOVA'], not 'ENRICHMENT'"),
+            }
+
+        def test_list_of_one_type(self, definition, datasets):
+            assert validate_form(definition, {"only_intensity": "int1"}, datasets=datasets).is_valid
+            assert _errors(validate_form(definition, {"only_intensity": "pw1"}, datasets=datasets)) == {
+                ("only_intensity", "dataset 'pw1' must be one of the types ['INTENSITY'], not 'PAIRWISE'"),
+            }
+
+        def test_type_comparison_is_case_sensitive(self, definition):
+            datasets = [TestDatasetsField._dataset("pw1", "pairwise")]
+            result = validate_form(definition, {"single": "pw1"}, datasets=datasets)
+            assert _errors(result) == {
+                ("single", "dataset 'pw1' must be one of the types ['PAIRWISE', 'ANOVA'], not 'pairwise'"),
+            }
+
+        def test_dataset_without_a_type_is_invalid(self, definition):
+            datasets = [{"id": "ds1", "name": "DS1", "state": "COMPLETED"}]
+            result = validate_form(definition, {"single": "ds1"}, datasets=datasets)
+            assert _errors(result) == {
+                ("single", "dataset 'ds1' must be one of the types ['PAIRWISE', 'ANOVA'], not None"),
+            }
+
+        def test_wrong_type_and_state_are_both_reported(self, definition):
+            datasets = [TestDatasetsField._dataset("int1", "INTENSITY", state="RUNNING")]
+            result = validate_form(definition, {"single": "int1"}, datasets=datasets)
+            assert _errors(result) == {
+                ("single", "dataset 'int1' must be one of the types ['PAIRWISE', 'ANOVA'], not 'INTENSITY'"),
+                ("single", "dataset 'int1' must be in state 'COMPLETED', not 'RUNNING'"),
+            }
+
+        def test_missing_dataset_reports_only_missing(self, definition, datasets):
+            result = validate_form(definition, {"several": ["pw1", "missing"]}, datasets=datasets)
+            assert _errors(result) == {
+                ("several", "dataset 'missing' is not in the provided datasets"),
+            }
+
+        def test_a_single_type_string_still_works(self):
+            definition = translate_payload(TestDatasetsField._Form.model_json_schema())
+            datasets = [TestDatasetsField._dataset("int1", "INTENSITY")]
+            result = validate_form(definition, {"pairwise_dataset": "int1"}, datasets=datasets)
+            assert _errors(result) == {
+                ("pairwise_dataset", "dataset 'int1' must be of type 'PAIRWISE', not 'INTENSITY'"),
+            }
+
+    class TestMultiple:
+        """A field with multiple=False holds at most one dataset."""
+
+        @pytest.mark.parametrize("value", ["pw1", ["pw1"], {"id": "pw1"}, [{"id": "pw1"}], []])
+        def test_a_single_dataset_is_valid(self, definition, datasets, value):
+            assert validate_form(definition, {"pairwise_dataset": value}, datasets=datasets).is_valid
+
+        def test_several_datasets_are_invalid(self, definition):
+            datasets = [TestDatasetsField._dataset("pw1", "PAIRWISE"), TestDatasetsField._dataset("pw2", "PAIRWISE")]
+            result = validate_form(definition, {"pairwise_dataset": ["pw1", "pw2"]}, datasets=datasets)
+            assert _errors(result) == {
+                ("pairwise_dataset", "only one dataset can be selected"),
+            }
+
+        def test_each_of_several_datasets_is_still_checked(self, definition, datasets):
+            result = validate_form(definition, {"pairwise_dataset": ["pw1", "int1"]}, datasets=datasets)
+            assert _errors(result) == {
+                ("pairwise_dataset", "only one dataset can be selected"),
+                ("pairwise_dataset", "dataset 'int1' must be of type 'PAIRWISE', not 'INTENSITY'"),
+            }
+
+        def test_multiple_true_allows_several(self, definition, datasets):
+            assert validate_form(definition, {"anova_datasets": ["an1", "an2"]}, datasets=datasets).is_valid
+
+        def test_multiple_unset_allows_several(self, definition, datasets):
+            assert validate_form(definition, {"any_dataset": ["an1", "pw1"]}, datasets=datasets).is_valid
+
+        def test_a_max_bound_reports_instead(self):
+            class _Form(MdDatasetBaseModel):
+                input_datasets: list = intensity_input_dataset_field()
+
+            definition = translate_payload(_Form.model_json_schema())
+            datasets = [TestDatasetsField._dataset("int1", "INTENSITY"), TestDatasetsField._dataset("int2", "INTENSITY")]
+            result = validate_form(definition, {"input_datasets": ["int1", "int2"]}, datasets=datasets)
+            assert _errors(result) == {
+                ("input_datasets", "must have at most 1 items"),
+            }
+
+    class TestEntityTypes:
+        """A selected dataset must have at least one of the field's entity_types."""
+
+        class _Form(MdDatasetBaseModel):
+            input_datasets: Optional[list] = datasets_field(multiple=True, entity_types=["protein", "gene"])
+
+        @pytest.fixture()
+        def definition(self):
+            return translate_payload(self._Form.model_json_schema())
+
+        def test_definition_carries_the_entity_types(self, definition):
+            assert definition["input_datasets"]["parameters"] == {
+                "multiple": True, "entityTypes": ["protein", "gene"],
+            }
+
+        @pytest.mark.parametrize("entity_types", [["protein"], ["gene"], ["peptide", "gene"], ["protein", "gene"]])
+        def test_one_matching_entity_type_is_valid(self, definition, entity_types):
+            datasets = [TestDatasetsField._dataset("ds1", "INTENSITY", entity_types=entity_types)]
+            assert validate_form(definition, {"input_datasets": ["ds1"]}, datasets=datasets).is_valid
+
+        @pytest.mark.parametrize("entity_types", [["peptide"], ["metabolite", "ptm"], []])
+        def test_no_matching_entity_type_is_invalid(self, definition, entity_types):
+            datasets = [TestDatasetsField._dataset("ds1", "INTENSITY", entity_types=entity_types)]
+            result = validate_form(definition, {"input_datasets": ["ds1"]}, datasets=datasets)
+            assert _errors(result) == {
+                ("input_datasets", "dataset 'DS1' has none of the entity types ['protein', 'gene']"),
+            }
+
+        def test_entity_type_comparison_is_case_sensitive(self, definition):
+            datasets = [TestDatasetsField._dataset("ds1", "INTENSITY", entity_types=["Protein"])]
+            result = validate_form(definition, {"input_datasets": ["ds1"]}, datasets=datasets)
+            assert _errors(result) == {
+                ("input_datasets", "dataset 'DS1' has none of the entity types ['protein', 'gene']"),
+            }
+
+        def test_each_selected_dataset_is_checked(self, definition):
+            datasets = [
+                TestDatasetsField._dataset("ds1", "INTENSITY", entity_types=["protein"]),
+                TestDatasetsField._dataset("ds2", "INTENSITY", entity_types=["peptide"]),
+                TestDatasetsField._dataset("ds3", "INTENSITY", entity_types=["metabolite"]),
+            ]
+            data = {"input_datasets": ["ds1", "ds2", "ds3"]}
+            assert _errors(validate_form(definition, data, datasets=datasets)) == {
+                ("input_datasets", "dataset 'DS2' has none of the entity types ['protein', 'gene']"),
+                ("input_datasets", "dataset 'DS3' has none of the entity types ['protein', 'gene']"),
+            }
+
+        def test_error_names_dataset_by_id_when_it_has_no_name(self, definition):
+            datasets = [{"id": "ds1", "type": "INTENSITY", "state": "COMPLETED", "entity_types": ["peptide"]}]
+            result = validate_form(definition, {"input_datasets": ["ds1"]}, datasets=datasets)
+            assert _errors(result) == {
+                ("input_datasets", "dataset 'ds1' has none of the entity types ['protein', 'gene']"),
+            }
+
+        def test_dataset_without_entity_types_is_not_checked(self, definition):
+            datasets = [TestDatasetsField._dataset("ds1", "INTENSITY")]
+            assert validate_form(definition, {"input_datasets": ["ds1"]}, datasets=datasets).is_valid
+
+        def test_missing_dataset_reports_only_missing(self, definition):
+            result = validate_form(definition, {"input_datasets": ["missing"]}, datasets=[])
+            assert _errors(result) == {
+                ("input_datasets", "dataset 'missing' is not in the provided datasets"),
+            }
+
+        def test_without_entity_types_any_is_allowed(self):
+            datasets = [TestDatasetsField._dataset("ds1", "INTENSITY", entity_types=["metabolite"])]
+            definition = translate_payload(TestDatasetsField._Form.model_json_schema())
+            assert validate_form(definition, {"any_dataset": "ds1"}, datasets=datasets).is_valid
+
+        def test_reported_alongside_an_entity_type_field(self):
+            class _Form(MdDatasetBaseModel):
+                entity_type: EntityType = entity_type_field()
+                input_datasets: list = datasets_field(entity_types=["protein", "gene"])
+
+            definition = translate_payload(_Form.model_json_schema())
+            datasets = [TestDatasetsField._dataset("ds1", "INTENSITY", entity_types=["peptide"])]
+            data = {"input_datasets": ["ds1"], "entity_type": "protein"}
+            assert _errors(validate_form(definition, data, datasets=datasets)) == {
+                ("input_datasets", "dataset 'DS1' has none of the entity types ['protein', 'gene']"),
+                ("input_datasets", "dataset 'DS1' does not have entity type 'protein'"),
+            }
+
+    def test_entity_type_field_can_search_it(self):
+        class _Form(MdDatasetBaseModel):
+            entity_type: EntityType = entity_type_field(datasets_ref="anova_datasets")
+            anova_datasets: list = datasets_field(type="ANOVA", multiple=True)
+
+        definition = translate_payload(_Form.model_json_schema())
+        datasets = [
+            self._dataset("an1", "ANOVA", entity_types=["protein"]),
+            self._dataset("an2", "ANOVA", entity_types=["gene"]),
+        ]
+        data = {"anova_datasets": ["an1", "an2"], "entity_type": "protein"}
+        assert _errors(validate_form(definition, data, datasets=datasets)) == {
+            ("anova_datasets", "dataset 'AN2' does not have entity type 'protein'"),
+        }
+
+
 class TestValidatesEntityTypeField():
 
     class _Form(MdDatasetBaseModel):

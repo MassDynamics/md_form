@@ -141,6 +141,11 @@ knowledge_bases = select_field(
 - `intensity_input_dataset_field()`
 - `intensity_input_datasets_field(entity_types=None, min=1, max=None)`
   - `entity_types` is a list of `EntityType` values, e.g. `["protein", "gene"]`
+- `datasets_field(type=None, multiple=None, entity_types=None)`
+  - `type` limits the datasets to one type, e.g. `"PAIRWISE"`, or to any of a list of types, e.g.
+    `["PAIRWISE", "ANOVA"]`; omit it to allow any type
+  - `multiple=False` allows at most one dataset
+  - `entity_types` is a list of `EntityType` values; each selected dataset must have at least one of them
 - `entity_type_field(default=None, datasets_ref="input_datasets")`
   - `default` is an `EntityType` value, e.g. `"protein"`
   - `datasets_ref` names the dataset field it applies to; the datasets selected there must have the chosen entity type

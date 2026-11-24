@@ -4,7 +4,7 @@ from enum import Enum
 from typing import Any, Dict, List, Literal, Optional, Union
 from .field_types import FieldType
 from .field_builder import field_builder
-from typeguard import typechecked
+from typeguard import CollectionCheckStrategy, typechecked
 
 class FieldDataType(str, Enum):
     BOOLEAN = "boolean"
@@ -478,16 +478,18 @@ def intensity_input_datasets_field(entity_types: Optional[List[EntityType]] = No
     }
 
 @field_builder(FieldType.INTENSITY_INPUT_DATASET)
-@typechecked
+# Check every item of a type list, not just the first.
+@typechecked(collection_check_strategy=CollectionCheckStrategy.ALL_ITEMS)
 def datasets_field(
-    type: Optional[str] = None,
+    type: Optional[Union[str, List[str]]] = None,
     multiple: Optional[bool] = None,
     entity_types: Optional[List[EntityType]] = None,
 ) -> Dict[str, Any]:
     """Create a dataset search select field configurable for any dataset type.
 
-    `type` filters the available datasets by dataset type (e.g. "INTENSITY",
-    "PAIRWISE", "ANOVA"). Omit to allow selection of any dataset type.
+    `type` filters the available datasets by dataset type: one type (e.g.
+    "PAIRWISE") or a list of types (e.g. ["PAIRWISE", "ANOVA"]). Omit to allow
+    selection of any dataset type.
     `multiple` controls whether multiple datasets can be selected (default False).
     `entity_types` filters by entity type (e.g. ["protein", "gene"]).
     """

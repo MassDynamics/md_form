@@ -823,6 +823,47 @@ class TestDatasetSearchSelectField:
             field = datasets_field(type=dataset_type)
             assert field.json_schema_extra["parameters"]["type"] == dataset_type
 
+    def test_with_type_none_omits_type(self):
+        field = datasets_field(type=None, multiple=True)
+
+        assert "type" not in field.json_schema_extra["parameters"]
+
+    def test_with_type_list(self):
+        field = datasets_field(type=["PAIRWISE", "ANOVA"])
+
+        assert field.json_schema_extra["parameters"]["type"] == ["PAIRWISE", "ANOVA"]
+
+    def test_with_type_list_of_one(self):
+        field = datasets_field(type=["INTENSITY"])
+
+        assert field.json_schema_extra["parameters"]["type"] == ["INTENSITY"]
+
+    def test_type_list_with_all_params(self):
+        field = datasets_field(type=["INTENSITY", "PAIRWISE"], multiple=True, entity_types=["gene"])
+
+        assert field.json_schema_extra["parameters"] == {
+            "type": ["INTENSITY", "PAIRWISE"],
+            "multiple": True,
+            "entityTypes": ["gene"],
+        }
+
+    def test_type_list_in_form_definition(self):
+        class _Form(MdDatasetBaseModel):
+            input_datasets: Optional[list] = datasets_field(type=["PAIRWISE", "ANOVA"], multiple=True)
+
+        definition = translate_payload(_Form.model_json_schema())
+
+        assert definition["input_datasets"]["fieldType"] == "Datasets"
+        assert definition["input_datasets"]["parameters"] == {
+            "type": ["PAIRWISE", "ANOVA"],
+            "multiple": True,
+        }
+
+    @pytest.mark.parametrize("bad_type", [5, ["PAIRWISE", 5], [None], {"type": "PAIRWISE"}, ("PAIRWISE",)])
+    def test_rejects_type_that_is_not_a_string_or_list_of_strings(self, bad_type):
+        with pytest.raises(TypeCheckError):
+            datasets_field(type=bad_type)
+
 
 class TestEntityTypeField:
     """Test cases for the entity_type_field function"""
